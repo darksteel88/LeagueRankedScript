@@ -1,5 +1,5 @@
 # LeagueRankedScript
-A Google Sheets add-on that automatically populates a spreadsheet with my League of Legends stats
+A Google Sheets add-on that automatically populates a spreadsheet with my League of Legends stats. The script is written in JavaScript and makes use of Riot and Google's APIs.
 
 # Introduction
 I have always strived to get better at League of Legends, and one of the ways I attempted to do so was by tracking my statistics. Other attempts failed because there was simlpy too much information to write by hand, or not enough information was populated. With the help of Google Sheets and Riot's API, I was able to create an automated program to track my statistics.
