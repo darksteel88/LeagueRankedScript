@@ -29,7 +29,7 @@ I ultimately decided to do it in Google Sheets because of the benefits it offers
 * Set the API key to whatever your API key is. If you do not have one, you can get one at developer.riotgames.com. Remember that you need to keep this private, please do not share this with anyone under any circumstances.
 ![alt tag](http://i.imgur.com/Rd28SSS.png)
 5. Click Ranked-> Run. The spreadsheet will begin to populate data
-6. On the initial run, it may not complete all the data. This is because there is a maximum time of 5 minutes for the script. If it does not complete, just run it again and it will continue from where it left off. 
+6. On the initial run, it may not complete all the data. This is because there is a maximum time of 5 minutes for the script. If it does not complete, just run it again and it will continue from where it left off. **You will likely need to run it several times to populate all the data.**
 
 # My Spreadsheet
 A viewable copy of my Spreadsheet can be found here:
