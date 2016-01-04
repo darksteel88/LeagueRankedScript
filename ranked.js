@@ -24,6 +24,23 @@ function run() {
 }
 
 /*
+ * Gets an array of all games we haven't recorded and then populates the data for it on our sheet
+ * A special version in order to populate while skipping the league info
+ */
+function runInitial() {
+  checkPartialRow(getFirstEmptyRow()-1); // delete a potentially partially filled row
+  var match_history = findUniqueMatchIds();
+  if(!match_history || match_history == 'exit') {
+    return 'exit';
+  }
+  var result = populate(match_history, null, true);
+  // indicates a partial entry so delete the most recent row
+  if(result == 'exit') {
+    deleteRow(getFirstEmptyRow() - 1);
+  }
+}
+
+/*
  * Build the menu
  */
 function buildMenu(e) {
@@ -31,6 +48,7 @@ function buildMenu(e) {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('Ranked')
     .addItem('Run', 'run')
+    .addItem('Run Initial', 'runInitial')
     .addItem('Correct Row', 'fixRow')
     .addToUi();
   /*var menu = SpreadsheetApp.getUi().createAddonMenu();
@@ -155,6 +173,9 @@ function populate(match_history, specificRow, discludeLeague) {
     setCell('Time', row, dt[1]);
     setCell('Length', row, getMatchLength(match));
     var pid = getMatchParticipantId(match);
+    if(pid === 'exit') {
+      return 'exit';
+    }
     var pobj = getParticipantObj(match, pid);
     var teamId = getMatchTeamId(pobj);
     var myChamp = getMyChampion(pobj);
@@ -183,11 +204,14 @@ function populate(match_history, specificRow, discludeLeague) {
       if(leagueStats == 'exit') {
         return 'exit';
       }
-      setCell('League', row, leagueStats['tier']);
-      setCell('Division', row, leagueStats['division']);
-      setCell('Current LP', row, leagueStats['lp']);
-      var oldLP = sheet.getRange(row-1, getSheetTranslationIndex('Current LP')).getValue();
-      getAndSetPromosLP(oldLP, leagueStats['lp'], sheet.getRange(row-1, getSheetTranslationIndex('Promos')).getValue(), leagueStats['promos'], row);
+      // will come up undefined if we've changed our summoner name previously
+      if(leagueStats) {
+        setCell('League', row, leagueStats['tier']);
+        setCell('Division', row, leagueStats['division']);
+        setCell('Current LP', row, leagueStats['lp']);
+        var oldLP = sheet.getRange(row-1, getSheetTranslationIndex('Current LP')).getValue();
+        getAndSetPromosLP(oldLP, leagueStats['lp'], sheet.getRange(row-1, getSheetTranslationIndex('Promos')).getValue(), leagueStats['promos'], row);
+      }
     }
     // because searching through n rows is potentially computationally expensive, give the user the option to disable to save time
     if(getInfo('check_duoer')) {
@@ -426,6 +450,8 @@ function getMatchParticipantId(match) {
       return participants[i]['participantId'];
     }
   }
+  Browser.msgBox("Error: could not find your summoner name. If you have changed it, please run it with the old summoner name");
+  return 'exit';
 }
 
 /*
