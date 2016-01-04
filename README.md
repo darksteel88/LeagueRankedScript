@@ -43,3 +43,4 @@ Unfortunately, there are some issues with the spreadsheet. Fortunately, they are
 6. AFKs are automatically tracked, but it can't be done accurately. This is because the way we have to check, we can't guarantee it. As a result, if you notice anything wrong, you can fix it yourself, it's easy to do.
 7. The percentage tracking on the additional spreadsheets rely on a specific cell being the grand total. If it's not tracking correctly, it's because the grand total cell is wrong. Fix it by changing it in the formula to the correct one.
 8. I have not tested it for regions other than NA. If it does not work, sorry about that. Let me know and I'll see what I can do.
+9. If you have changed your summoner name, it will fail on games that used your old name. You will need to run it with the old name for those set of games.
