@@ -1,25 +1,54 @@
 /*
- * Gets an array of all games we haven't recorded and then populates the data for it on our sheet
  * onOpen is the function called when the sheet is loaded
+ * It calls the run function to start populating data
  */
-function onOpen() {
+function onOpen(e) {
+  buildMenu(e);
+  run();
+}
+
+/*
+ * Gets an array of all games we haven't recorded and then populates the data for it on our sheet
+ */
+function run() {
   var match_history = findUniqueMatchIds();
   if(!match_history || match_history == 'exit') {
     return 'exit';
   }
   var result = populate(match_history);
+  // indicates a partial entry so delete the most recent row
   if(result == 'exit') {
-    // TODO: check if we need to delete a partial entry
+    deleteRow(getFirstEmptyRow() - 1);
   }
 }
 
-/**
+/*
+ * Build the menu
+ */
+function buildMenu(e) {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Ranked')
+    .addItem('Run', 'run')
+    .addItem('Correct Row', 'fixRow')
+    .addToUi();
+}
+
+/*
+ * Delete the row indicated by row
+ */
+function deleteRow(row) {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  sheet.deleteRow(row);
+}
+
+/*
  * Get our information from the info sheet
  * The only fields applicable are the api key, region, summoner name, season, summoner id, and check duoer
  */
 function getInfo(value) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = s.getSheetByName('Info');
+  var sheet = s.getSheetByName('Configuration');
   if(value == 'api_key') {
     return sheet.getRange('B1').getValue();
   }
@@ -35,6 +64,16 @@ function getInfo(value) {
   if(value == 'check_duoer') {
     return sheet.getRange('B6').getValue();
   }
+  if(value == 'correct_row') {
+    var row = sheet.getRange('B7').getValue();
+    if(row) {
+      return row;
+    }
+    else {
+      Browser.msgBox("Error, please enter a row number to be corrected when using this option")
+      return;
+    }
+  }
   // summoner_id has a special case because it's populated the first time we run the script
   if(value == 'summoner_id') {
     val = sheet.getRange('B4').getValue();
@@ -49,7 +88,7 @@ function getInfo(value) {
   }
 }
 
-/**
+/*
  * Find the match ids from our match history that we haven't added to the sheet yet
  * Returns them as an array in chronological order
  */
@@ -71,21 +110,28 @@ function findUniqueMatchIds() {
   return match_history.reverse();
 }
 
-/**
+/*
  * For a given set of match ids, populate the spreadsheet data
  */
-function populate(match_history) {
+function populate(match_history, specificRow, discludeLeague) {
   // call all the necessary functions to update the spreadsheet
   // some functions will update the values themselves
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
   for(n = 0; n < match_history.length; n++) {
-    sheet.appendRow([match_history[n]]);
-    var row = getFirstEmptyRow() - 1;
+    var row;
+    if(!specificRow) {
+      sheet.appendRow([match_history[n]]);
+      row = getFirstEmptyRow() - 1;
+    }
+    else {
+      row = specificRow;
+    }
     var match = getMatch(match_history[n]);
     if(match == 'exit') {
       return 'exit';
     }
+    setCell('Patch', row, getPatch(match));
     var dt = getMatchDate(match);
     setCell('Date', row, dt[0]);
     setCell('Time', row, dt[1]);
@@ -111,18 +157,20 @@ function populate(match_history) {
     setCell('CS/Min', row, cs[1]);
     getAndSetChampionStats(match, getMatchTeamId(pobj), row);
     setCell('My Role', row, getMyRole(row));
-    setCell('Kill Contribution', row, (stats['kills'] + stats['deaths'])/getTotalKills(match, teamId));
-    setCell('Death Contribution', row, stats['deaths']/getTotalDeaths(match, teamId));
+    setCell('Kill Contribution', row, (stats['kills'] + stats['deaths'])/getTotalKD(match, teamId, 'kills'));
+    setCell('Death Contribution', row, stats['deaths']/getTotalKD(match, teamId, 'deaths'));
     setCell('Highest KDA', row, getHighestKDA(row));
-    leagueStats = getMyLeagueStats(); 
-    if(leagueStats == 'exit') {
-      return 'exit';
+    if(!discludeLeague) {
+      leagueStats = getMyLeagueStats(); 
+      if(leagueStats == 'exit') {
+        return 'exit';
+      }
+      setCell('League', row, leagueStats['tier']);
+      setCell('Division', row, leagueStats['division']);
+      setCell('Current LP', row, leagueStats['lp']);
+      var oldLP = sheet.getRange(row-1, getSheetTranslationIndex('Current LP')).getValue();
+      getAndSetPromosLP(oldLP, leagueStats['lp'], sheet.getRange(row-1, getSheetTranslationIndex('Promos')).getValue(), leagueStats['promos'], row);
     }
-    setCell('League', row, leagueStats['tier']);
-    setCell('Division', row, leagueStats['division']);
-    setCell('Current LP', row, leagueStats['lp']);
-    var oldLP = sheet.getRange(row-1, getSheetTranslationIndex('Current LP')).getValue();
-    getAndSetPromosLP(oldLP, leagueStats['lp'], sheet.getRange(row-1, getSheetTranslationIndex('Promos')).getValue(), leagueStats['promos'], row);
     // because searching through n rows is potentially computationally expensive, give the user the option to disable to save time
     if(getInfo('check_duoer')) {
       setDuoer(match, row, getTeamPlayers(match, teamId));
@@ -152,7 +200,7 @@ function populate(match_history) {
     setCell('Wards Destroyed', row, wardStats[1]);
     setCell('Vision Wards Bought', row, wardStats[2]);
     getDeltas(pobj, row);
-    var oppPobj = getOpponentParticipantObj(match, getRoleFromParticipantObj(pobj), teamId);
+    var oppPobj = getOpponentParticipantObj(match, getMyRole(row), teamId);
     var laneOpponentStats = getLaneOpponentStats(match, oppPobj, getOpponentTeamId(teamId));
     setCell('Total CS Difference', row, cs[0]-laneOpponentStats['minions']);
     setCell('Kill Diff', row, stats['kills']-laneOpponentStats['kills']);
@@ -163,26 +211,18 @@ function populate(match_history) {
     setCell('Wards Placed Diff', row, wardStats[0]-laneOpponentStats['wardsPlaced']);
     setCell('Wards Destroyed Diff', row, wardStats[1]-laneOpponentStats['wardsDestroyed']);
     setCell('Vision Wards Bought Diff', row, wardStats[2]-laneOpponentStats['visionWardsBought']);
-    setCell('Kill Contribution Diff', row, (stats['kills'] + stats['assists'])/getTotalKills(match, teamId)-laneOpponentStats['killContributionPercentage']);   
+    setCell('Kill Contribution Diff', row, (stats['kills'] + stats['assists'])/getTotalKD(match, teamId, 'kills')-laneOpponentStats['killContributionPercentage']);   
+    checkAllAFK(match, teamId, row);
   }
 }
 
-/**
- * Get the first empty row in the sheet
- */
 function getFirstEmptyRow() {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
-  var column = sheet.getRange('A:A');
-  var values = column.getValues();
-  var count = 0;
-  while(values[count] && values[count][0] != '') {
-    count++;
-  }
-  return (count+1);
+  return sheet.getLastRow() + 1;
 }
 
-/**
+/*
  * Get the cell letter for a specific column header
  */
 function getSheetTranslation(header) {
@@ -196,7 +236,7 @@ function getSheetTranslation(header) {
   }
 }
 
-/**
+/*
  * Get the cell index for a specific column header
  */
 function getSheetTranslationIndex(header) {  
@@ -211,7 +251,7 @@ function getSheetTranslationIndex(header) {
   }
 }
 
-/**
+/*
  * Translate the column number into the letter
  */
 function columnToLetter(column) {
@@ -224,7 +264,7 @@ function columnToLetter(column) {
   return letter;
 }
 
-/**
+/*
  * Set the cell at column, row, to a specific value
  * Column is the header name, not the letter or index value
  */
@@ -234,11 +274,11 @@ function setCell(column, row, value) {
   sheet.getRange(getSheetTranslation(column)+row).setValue(value);
 }
 
-/**
+/*
  * Get the summoner id by name
  */
 function getSummonerId() {
-  var url = 'https://' + getInfo('region') + '.api.pvp.net/api/lol/' + getInfo('region') + '/v1.4' + '/summoner/by-name/' + getInfo('summoner_name') + '?api_key=' + getInfo('api_key');
+  var url = 'https://' + getInfo('region') + '.api.pvp.net/api/lol/' + getInfo('region') + '/v1.4' + '/summoner/by-name/' + encodeURIComponent(getInfo('summoner_name')) + '?api_key=' + getInfo('api_key');
   var response = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
   var status = checkStatusError(response);
   if(!status) {
@@ -249,25 +289,29 @@ function getSummonerId() {
   else if(status == 'exit') {
     return 'exit';
   }
-  else if(status) { //wait 10 seconds
+  else if(typeof(status) == 'number') {
+    Utilities.sleep(status);
+    return getSummonerId();
+  }
+  else { // default wait 10 seconds if we fail but don't know why
     Utilities.sleep(10000);
     return getSummonerId();
   }
 }
 
-/**
- * Get the game ids for our recent matches
+/*
+ * Get the game ids for our matches
  * Note that this returns only ranked solo queue 5x5 games as per the current implementation
  * Returns an array of all the matchIds
  */
-function getMatchHistoryIds(mode, season) {
+function getMatchHistoryIds(mode) {
   // we get match ids because the match history only has our information
   // and since we want to track other player kdas then we're going to need the full match info per match
   // NOTE: season is going to have to be changed each season
   mode = typeof mode !== 'undefined' ? mode : '?rankedQueues=RANKED_SOLO_5x5';
-  season = typeof season !== 'undefined' ? mode : '&seasons=' + getInfo('season');
+  season = getInfo('season') !== '' ? '&seasons=' + getInfo('season') : '';
   var url = 'https://' + getInfo('region') + '.api.pvp.net/api/lol/' + getInfo('region') + '/v2.2' + '/matchlist/by-summoner/' + getInfo('summoner_id') + mode + season + '&api_key=' + getInfo('api_key'); 
-  var response = UrlFetchApp.fetch(url);
+  var response = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
   var status = checkStatusError(response);
   if(!status) {
     var json = response.getContentText();
@@ -285,19 +329,23 @@ function getMatchHistoryIds(mode, season) {
   else if(status == 'exit') {
     return 'exit';
   }
-  else if(status) { //wait 10 seconds
+    else if(typeof(status) == 'number') {
+    Utilities.sleep(status);
+    return getMatchHistoryIds(mode);
+  }
+  else { // default wait 10 seconds if we fail but don't know why
     Utilities.sleep(10000);
     return getMatchHistoryIds(mode);
   }
 }
 
-/**
+/*
  * Get the match details from a given matchId
  * Returns the json object of the match
  */
 function getMatch(matchId) {
   var url = 'https://' + getInfo('region') + '.api.pvp.net/api/lol/' + getInfo('region') + '/v2.2' + '/match/' + matchId + '?api_key=' + getInfo('api_key');
-  var response = UrlFetchApp.fetch(url);
+  var response = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
   var status = checkStatusError(response);
   if(!status) {
     var json = response.getContentText();
@@ -307,13 +355,17 @@ function getMatch(matchId) {
   else if(status == 'exit') {
     return 'exit';
   }
-  else if(status) { //wait 10 seconds
+  else if(typeof(status) == 'number') {
+    Utilities.sleep(status);
+    return getMatch(matchId);
+  }
+  else { // default wait 10 seconds if we fail but don't know why
     Utilities.sleep(10000);
     return getMatch(matchId);
   }
 }
 
-/**
+/*
  * Get the date of a game
  * Returns an array with the date and time in that order
  */
@@ -334,14 +386,14 @@ function getMatchDate(match) {
   return [date, (h + ' ' + ampm)];
 }
 
-/**
+/*
  * Get the duration of a match
  */
 function getMatchLength(match) {
   return Math.round(match['matchDuration']/60);
 }
 
-/**
+/*
  * Get our participant id
  * pid tells us which stuff to look at for our role, stats, etc
  */
@@ -354,7 +406,7 @@ function getMatchParticipantId(match) {
   }
 }
 
-/**
+/*
  * Get the participant object for ourselves
  * This function exists for simplicity of getting this object that we will need several times
  */
@@ -367,7 +419,7 @@ function getParticipantObj(match, pid) {
   }
 }
 
-/**
+/*
  * Get the participant object for our lane opponent
  */
 function getOpponentParticipantObj(match, role, teamId) {
@@ -381,7 +433,7 @@ function getOpponentParticipantObj(match, role, teamId) {
   }
 }
 
-/**
+/*
  * Get the participant object given their summoner name
  */
 function getParticipantObjByName(match, name) {
@@ -397,14 +449,14 @@ function getParticipantObjByName(match, name) {
   return participants[pid-1];
 }
 
-/**
+/*
  * Get the id of the team from their participant object
  */
 function getMatchTeamId(participant) {
   return participant['teamId'];
 }
 
-/**
+/*
  * Get the opposing team's id, returned as an int
  * Takes in our teamId as an argument
  */
@@ -445,7 +497,7 @@ function getMyRole(row) {
   }
 }
 
-/**
+/*
  * Get the role from a participant object
  * Note: every champion gets assigned a role, even if they're all the same
  */
@@ -453,12 +505,18 @@ function getRoleFromParticipantObj(participant) {
   var role = participant['timeline']['role'];
   var lane = participant['timeline']['lane'];
   if(lane == 'TOP') {
+    if(role == 'DUO_SUPPORT' && checkSummonerIsSmite(participant)) {
+      return 'Jungle';
+    }
     return 'Top';
   }
-  else if(lane == 'JUNGLE') {
+  else if(lane == 'JUNGLE' && checkSummonerIsSmite(participant)) {
     return 'Jungle';
   }
   else if(lane == 'MIDDLE') {
+    if(role == 'DUO_SUPPORT' && checkSummonerIsSmite(participant)) { 
+      return 'Jungle';
+    }
     return 'Mid';
   }
   else if(lane == 'BOTTOM') {
@@ -469,104 +527,571 @@ function getRoleFromParticipantObj(participant) {
       return 'Support';
     }
     else { // if adc and support didn't properly get flagged, we will handle this case specifically
-      return 'Unknown';
+      return 'Bot';
     }
   }
-}
-
-function getMyChampion(participant) {
-  return getChampionTranslation(participant['championId']);
-}
-
-/**
- * Get champions and their kda
- * teamId is our teamId so we can tell which champs are which team
- */
-function getAndSetChampionStats(match, teamId, row) {
-  var participants = match['participants'];
-  var s = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = s.getSheetByName('Data');
-  var botLanes = {"myBot" : [
-    {'champion': '', 'cs': '', 'kda': ''},
-    {'champion': '', 'cs': '', 'kda': ''} ],
-                  "theirBot": [
-    {'champion': '', 'cs': '', 'kda': ''},
-    {'champion': '', 'cs': '', 'kda': ''} ]};
-                    
-  for(i = 0; i < participants.length; i++) {
-    var botIssue = false; // used to track if there was an issue determining the duo role
-    var lookupStr = '';
-    if(participants[i]['teamId'] == teamId) {
-       lookupStr += 'My ';
-    }
-    else {
-      lookupStr += 'Their ';
-    }
-    var role = getRoleFromParticipantObj(participants[i]);
-    if(role != 'Unknown') {
-      lookupStr += role;
-    }
-    // if there's some irregularity with determining the bot lane, we'll default to this special method of determining
-    // this special method will use CS to determine which person was ADC and which was Support
-    // NOTE: this will evidently fail if someone AFKs, but then I can't really automate that without preassigning champion to role which would also fail
-    // NOTE: if there's a problem with one duo role not getting flagged correctly, both will flag incorrectly
-    else {
-       var deaths = participants[i]['stats']['deaths'];
-       deaths = (deaths == 0 ? 1 : deaths);
-       var kda = (participants[i]['stats']['kills'] + participants[i]['stats']['assists']) / deaths;
-       var botTeam = (participants[i]['teamId'] == teamId) ? 'myBot' : 'theirBot';
-       var botIndex = botLanes[botTeam][0]['champion'] ? 1 : 0; // if the first index is already filled, then this pass through will set the second
-       botLanes[botTeam][botIndex]['champion'] = getChampionTranslation(participants[i]['championId']);
-       botLanes[botTeam][botIndex]['cs'] = participants[i]['stats']['minionsKilled'];
-       botLanes[botTeam][botIndex]['kda'] = kda;
-       botIssue = true;
-    }
-    var champ = getChampionTranslation(participants[i]['championId']);
-    if(champ == 'exit') {
-      return 'exit';
-    }
-    if(!botIssue) { // if there's no issues then just set it normally
-      setCell(lookupStr, row, champ);
-      lookupStr += ' KDA';
-      var deaths = participants[i]['stats']['deaths'];
-      deaths = (deaths == 0 ? 1 : deaths);
-      var kda = (participants[i]['stats']['kills'] + participants[i]['stats']['assists']) / deaths;
-      setCell(lookupStr, row, kda);
-    }
-    if(botLanes['myBot'][0]['champion'] || botLanes['myBot'][1]['champion']) { // now we fix it if we need to
-      fixDuoRoles(botLanes['myBot'], 'My', row);
-    }
-    if(botLanes['theirBot'][0]['champion'] || botLanes['theirBot'][1]['champion']) {
-      fixDuoRoles(botLanes['theirBot'], 'Their', row);
-    }
+  // we couldn't determine their role at this time
+  // likely an AFK or player got tagged as jungle when they're not jungle
+  else { 
+    return 'Unknown'; 
   }
 }
 
 /*
- * Helper function to fix the duo roles
- * If the duo roles get mixed up for some reason because they didn't get flagged correctly
- * Then we fix them
- * data is the json object with all the data, botLaneTeam
- * prefix is the string prefix for the column header (either My or Their)
- * row is the row in the spreadsheet to insert the data
+ * Get my champion from the partucupant object
  */
-function fixDuoRoles(data, prefix, row) {
-  // check which of the two indexes has the higher cs value
-  // that one gets labeled adc, other one gets labeled support
-  var adcIndex = (data[0]['cs'] >= data[1]['cs']) ? 0 : 1;
-  var supportIndex = (data[0]['cs'] < data[1]['cs']) ? 0 : 1;
-  setCell(prefix.concat(' ADC'), row, data[adcIndex]['champion']);
-  setCell(prefix.concat(' ADC KDA'), row, data[adcIndex]['kda']);
-  setCell(prefix.concat(' Support'), row, data[supportIndex]['champion']);
-  setCell(prefix.concat(' Support KDA'), row, data[supportIndex]['kda']);
+function getMyChampion(participant) {
+  return getChampionTranslation(participant['championId']);
 }
 
-/**
+/*
+ * Get champions and their kda
+ * teamId is our teamId so we can tell which champs are which team
+* Uses additional metrics to determine roles since Riot messes up sometimes
+ */
+function getAndSetChampionStats(match, teamId, row) {
+  var participants = match['participants'];
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');  
+  var valid = {"myTeam" : [],
+               "theirTeam" : []};
+  // note any roles in invalid are ignored since we determined the role is wrong
+  var invalid = {"myTeam" : [],
+               "theirTeam" : []};
+  for(var i = 0; i < participants.length; i++) {
+    var team = (participants[i]['teamId'] === teamId ? 'myTeam' : 'theirTeam');
+    var role = getRoleFromParticipantObj(participants[i]);
+    var stats = getPlayerStats(participants[i]);
+    var details = {
+      'Champion' : getChampionTranslation(participants[i]['championId']),
+      'Role' : role,
+      'CS' : stats['minions'],
+      'KDA' : stats['kda'],
+      'Smite' : checkSummonerIsSmite(participants[i])
+    }; 
+    // if the role is Bot (means we have a problem determining ADC/Support)
+    // or if someone got flagged jungle without smite
+    // or the role is already filled by another champion, it's invalid
+    var checkRole = checkRoleExists(valid[team], role);
+    if(checkRole !== false) { // because checkRole returns 0 sometimes
+      var checkValid = checkValidRole(valid[team][checkRole], details, role);
+      if(checkValid === 1) { // the previously labeled valid champ was invalid
+        invalid[team].push(valid[team][checkRole]);
+        valid[team].splice(checkRole, 1, details);
+      }
+      else { // the currently considered champ is invalid
+        invalid[team].push(details);
+      }
+    }
+    else if(role === 'Unknown' || role === 'Bot') {
+      invalid[team].push(details);
+    }
+    else { // role is valid so set it as such
+      valid[team].push(details);
+    }
+  }
+  /* 
+
+  We can start by checking if there's only 1:1
+    Fix them, fix the jungle case if we tag jungler without smite
+    If nobody has smite, they become jungle by default
+  Then we can start by trying to fix any double bot issue we detect
+  Then fix jungle afterwards
+  Slot any single solo bots now, if they slot easily, fine
+    if there's double bot missing with only single solo bot
+    slot based on champion
+  If support is missing, slot fewest cs into support
+  Slot randomly from here
+
+  We can fix if invalid = 1
+  We fix double bot issues
+  We fix issues related to camping lanes and jungle doesn't get tagged
+  We fix issues with a single dude being called bot
+
+  */
+  
+  for(var i = 0; i < 2; i++) { // once for each team
+    team = (i === 0 ? 'myTeam' : 'theirTeam');
+    var count = 0;
+    while(invalid[team].length != 0) { // as long as we still haven't finished fixing all the roles
+      var missing = getMissingRoles(valid[team]);
+      if(missing.length === 1) {
+        valid[team] = fixSingleRole(valid[team], invalid[team].splice(0, 1)[0], missing[0]);
+        break;
+      }
+      else {
+        var results = fixDuoBot(valid[team], invalid[team]); // fix any potential duo bot issue
+        valid[team] = results[0];
+        invalid[team] = results[1];
+        results = fixJungler(valid[team], invalid[team]); // try to fix the jungler
+        valid[team] = results[0];
+        invalid[team] = results[1];
+        results = fixSoloBot(valid[team], invalid[team]); // try to fix an issue with single SOLO BOT
+        valid[team] = results[0];
+        invalid[team] = results[1];
+        results = fixSupport(valid[team], invalid[team]); // try to properly pick the support
+        valid[team] = results[0];
+        invalid[team] = results[1];
+
+      }
+      // if after a few times we didn't fix it, start randomly assigning
+      // this should almost never happen and is just a fail safe so we don't crash and burn
+      if(count > 3 && invalid[team].length >= 1) {
+        invalid[team][0]['Role'] = missing.splice(0, 1)[0];
+        valid[team].push(invalid[team].splice(0, 1)[0]);
+      }
+      count++;
+    }
+  }
+
+  
+  // set all the columns now that we got all the roles correctly
+  for(var i = 0; i < 5; i++) {
+    setCell('My '.concat(valid['myTeam'][i]['Role']), row, valid['myTeam'][i]['Champion']);
+    setCell('My '.concat(valid['myTeam'][i]['Role']).concat(' KDA'), row, valid['myTeam'][i]['KDA']);
+    setCell('Their '.concat(valid['theirTeam'][i]['Role']), row, valid['theirTeam'][i]['Champion']);
+    setCell('Their '.concat(valid['theirTeam'][i]['Role']).concat(' KDA'), row, valid['theirTeam'][i]['KDA']);
+  }
+}
+
+/*
+ * Check if a role exists within an array of json objects
+ * Called only by getAndSetChampionStats
+ * If true returns the index that the role is in
+ * If false, returns false
+ */
+function checkRoleExists(champs, role) {
+  for(var i = 0; i < champs.length; i++) {
+    if(champs[i]['Role'] === role) {
+      return i;
+    }
+  }
+  return false;
+}
+
+/*
+ * Given two players that are on the same team with the same role
+ * Check which player is the given role and which is not
+ * Returns 0 for the first player, 1 for the second player
+ */
+function checkValidRole(player0, player1, role) {
+  /*
+  We can guarantee that double jungle means both have smite
+  Support taking smite will mess this up but I only expect top to take smite
+  
+  If the role is top or mid, call the one with more CS top/mid
+  If the role is support, call the one with less CS support
+  If the role is ADC, check if one is an ADC champ and call them ADC
+    If both are ADC, call the one with more CS ADC
+      This handles situations where you get double ADC bot
+  If the role is jungle, call the one with less CS jungle
+  */
+
+  if(role === 'Mid') {
+    var isPlayer0Mid = checkChampIsMid(player0['Champion']);
+    var isPlayer1Mid = checkChampIsMid(player1['Champion']);
+    if(isPlayer0Mid && !isPlayer1Mid) {
+      return 0;
+    }
+    if(isPlayer1Mid && !isPlayer0Mid) {
+      return 1;
+    }
+    // otherwise default to more cs
+    return (player0['CS'] >= player1['CS'] ? 0 : 1);
+  }
+  else if(role === 'Top' || role === 'Mid') {
+    var isPlayer0Top = checkChampIsTop(player0['Champion']);
+    var isPlayer1Top = checkChampIsTop(player1['Champion']);
+    if(isPlayer0Top && !isPlayer1Top) {
+      return 0;
+    }
+    if(isPlayer1Top && !isPlayer0Top) {
+      return 1;
+    }
+    // otherwise default to cs, it doesn't matter at this point
+    return (player0['CS'] >= player1['CS'] ? 0 : 1);
+  }
+  else if(role === 'Jungle' || role === 'Support') {
+    return (player0['CS'] <= player1['CS'] ? 0 : 1);
+  }
+  else {
+    var isPlayer0ADC = checkChampIsADC(player0['Champion']);
+    var isPlayer1ADC = checkChampIsADC(player1['Champion']);
+    if(isPlayer0ADC && !isPlayer1ADC) {
+      return 0;
+    }
+    if(isPlayer1ADC && !isPlayer0ADC) {
+      return 1;
+    }
+    // otherwise default to more cs method
+    return (player0['CS'] >= player1['CS'] ? 0 : 1);
+  }
+}
+
+/*
+ * Check if the champion is a known ADC champion
+ * Helps us in determining who should be ADC when it messes up
+ */
+function checkChampIsADC(champion) {
+  var adcs = ['Ashe', 'Caitlyn', 'Corki', 'Draven', 'Ezreal', 'Graves',
+  'Jinx', 'Kalista', "Kog'Maw", 'Lucian', 'Miss Fortune', 
+  'Sivir', 'Tristana', 'Twitch', 'Varus', 'Vayne'];
+  if(adcs.indexOf(champion) != -1) {
+    return true;
+  }
+  return false;
+}
+  
+/*
+ * Check if the champion is a known Top champion
+ * Helps us in determining who should be TOP when it messes up
+ */
+function checkChampIsTop(champion) {
+  var tops = ['Malphite', 'Renekton', 'Fiora', 'Irelia', 'Darius', 'Gnar',
+              'Shen', 'Jax', 'Nasus', 'Illaoi', 'Garen', 'Vladimir', 
+              'Dr. Mundo', 'Trundle', 'Tryndamere', 'Rengar', 'Olaf', 
+              'Wukong', 'Tahm Kench', 'Teemo', 'Pantheon', 'Hecarim', 
+              'Singed', 'Volibear', 'Rumble', 'Aatrox', 'Maokai', 
+              'Shyvana', 'Yorick'];
+  if(tops.indexOf(champion) != -1) {
+    return true;
+  }
+  return false;
+}
+
+/*
+ * Check if the champion is a known Mid champion
+ * Helps us in determining who should be Mid when it messes up
+ */
+function checkChampIsMid(champion) {
+  var mids = ['Ahri', 'Lux', 'LeBlanc', 'Anivia', 'Brand', 'Twisted Fate', 
+              'Oriana', 'Kassadin', 'Annie', 'Azir', 'Viktor', 'Syndra', 
+              'Ekko', 'Malzahar', 'Diana', 'Katarina', 'Talon', 'Morgana',
+              'Xerath', 'Veigar', 'Ezreal', "Vel'Koz", 'Ziggs', 'Cassiopeia',
+              'Karthus', 'Zilean', 'Zyra', 'Varus', "Kog'Maw", 'Karma'];
+  if(mids.indexOf(champion) != -1) {
+    return true;
+  }
+  return false;
+}
+
+
+
+/*
+ * Check if the player was AFK the entire game
+ */
+function checkAFK(player) {
+  // check the player's CS and KDA, if both are 0, they never connected
+  // only role that will get 0 CS is support, and it's basically impossible to have a zero KDA
+  return (player['CS'] === 0 && player['KDA'] === 0);
+}
+
+/*
+ * Returns an array of all the roles we have not populated
+ * Takes in the valid json object
+ */
+function getMissingRoles(data) {
+  var roles = ['Top', 'Jungle', 'Mid', 'ADC', 'Support'];
+  for(var i = 0; i < data.length; i++) {
+    for(var j = 0; j < roles.length; j++) {
+      if(roles[j] === data[i]['Role']) {
+        roles.splice(j, 1);
+        break;
+      }
+    }
+  }
+  return roles;
+}
+
+/*
+ * Check if any players were AFK in the match
+ * Uses the timeline data to check
+ * Takes in the match, teamId, and the row
+ */
+function checkAllAFK(match, teamId, row) {
+
+  /*
+  We define AFK to be having 35% or less XP than the average
+  Where the average doesn't consider non-zero entities
+  NOTE: We are testing 35% right now based on a a previous game to see if it breaks anything by being that high
+  There was a game I got crushed in but I still had 52%, I expect as high as 40% is okay
+  47% definitely broke it
+  35% broke it and the value it broke on was 28%
+  I'm leaving it at 35 but if I publish, 25% is a better value
+  */
+  var deltas = [];
+  var deltaTimes = ['zeroToTen', 'tenToTwenty', 'twentyToThirty', 'thirtyToEnd'];
+  var myAFK = 0;
+  var theirAFK = 0;
+  var afk = false;
+  for(var i = 0; i < 10; i++) {
+    deltas.push(getXPPerMinuteDelta(match['participants'][i]));
+  }
+  var averageDeltas = getAverageDeltas(deltas, deltaTimes);
+  for(var i = 0; i < deltas.length; i++) {
+    for(var j = 0; j < deltaTimes.length; j++) {
+      if(deltas[i][deltaTimes[j]] <= (averageDeltas[deltaTimes[j]] * 0.35)) {
+        if(match['participants'][i]['teamId'] == teamId) {
+          myAFK++;
+        }
+        else {
+          theirAFK++;
+        }
+        break;
+      }
+    }
+  }
+  setCell('My AFK', row, myAFK);
+  setCell('Their AFK', row, theirAFK);
+}
+
+/*
+ * Get a player's XPPerMinute Delta
+ * Takes in the participant object for a player
+ * Returns the delta as a JSON object
+ */
+function getXPPerMinuteDelta(pobj) {
+  return pobj['timeline']['xpPerMinDeltas'];
+}
+
+/*
+ * Get all the average deltas for a given set of deltas
+ * deltas is an array of all the deltas for players
+ * deltaTimes is an array of all the time period names
+ * Returns a json object mapping time to delta
+ */
+function getAverageDeltas(deltas, deltaTimes) {
+  var data = {};
+
+  for(var i = 0 ; i < deltaTimes.length; i++) {
+    data[deltaTimes[i]] = 0;
+  }
+
+  for(var i = 0; i < deltas.length; i++) {
+    for(var j = 0; j < deltaTimes.length; j++) {
+      if(deltas[i][deltaTimes[j]] != 0) { 
+        // even though we're taking an average over N while potentially not summing N items
+        // a lower average is actually quite okay with us so we don't really care
+        data[deltaTimes[j]] += deltas[i][deltaTimes[j]] / deltas.length;
+      }
+    }
+  }
+  for(var i = 0; i < deltaTimes.length; i++) {
+    if(data[deltaTimes[i]] == 0) {
+      delete data[deltaTimes[i]];
+    }
+  }
+  return data;
+}
+
+/*
+ * Check if a player has smite as a summoner
+ */
+function checkSummonerIsSmite(pobj) {
+  return (pobj['spell1Id'] === 11 || pobj['spell2Id'] === 11);
+}
+
+/*
+ * Fix roles when only one role is missing
+ * Valid is an array of json objects for players
+ * Player is a json object for a player
+ * Returns the updated valid array for the team
+ */
+function fixSingleRole(valid, player, role) {
+  //slot 1:1 except when we have to fix jungle issues
+  if(role === 'Jungle' && !player['Smite']) {
+    var jungler = findJungler(valid);
+    if(!jungler) { // nobody has smite so we're jungle by default
+      player['Role'] = role;
+      valid.push(player);
+    }
+    player['Role'] = jungler['Role'];
+    jungler['Role'] = 'Jungle';
+    valid.push(jungler);
+    valid.push(player);
+  }
+  else {
+    player['Role'] = role;
+    valid.push(player);
+  }
+  return valid;
+}
+
+/*
+ * Check if we have one person coming up as solo bot and fix it
+ * Returns updated valid and invalid JSON objects
+ */
+function fixSoloBot(valid, invalid) {
+  var missing = getMissingRoles(valid);
+  var bot;
+  var count = 0;
+  for(var i = 0; i < invalid.length; i++) {
+    if(invalid[i]['Role'] === 'Bot') {
+      bot = i;
+      count++;
+    }
+  }
+  if(bot && count === 1) { // we detected a solo bot
+    if(missing.indexOf('ADC') !== -1 && missing.indexOf('Support') === -1) {
+      invalid[bot]['Role'] = 'ADC';
+      valid.push(invalid.splice(bot, 1)[0]);
+    }
+    else if(missing.indexOf('ADC') === -1 && missing.indexOf('Support') !== -1) {
+      invalid[bot]['Role'] = 'Support';
+      valid.push(invalid.splice(bot, 1)[0]);
+    }
+    if(missing.indexOf('ADC') === -1 && missing.indexOf('Support') === -1) { // both are still missing
+      // check if im an adc
+      if(checkChampIsADC(invalid[bot]['Champion'])) {
+        invalid[bot]['Role'] = 'ADC';
+        valid.push(invalid.splice(bot, 1)[0]);
+      }
+      else { // check if im in an extended list of adcs before calling me support
+        var adcs = ['Kindred', 'Quinn', 'Urgot'];
+        if(adcs.indexOf(invalid[bot]['Champion'] !== -1)) {
+          invalid[bot]['Role'] = 'ADC';
+        }
+        else {
+          invalid[bot]['Role'] = 'Support';
+        }
+        valid.push(invalid.splice(bot, 1)[0]);
+      }
+    }
+  }
+  return [valid, invalid];
+}
+
+/*
+ * Fix the jungler role if we can
+ * * Returns updated valid and invalid JSON objects
+ */
+function fixJungler(valid, invalid) {
+  var jungler = findJungler(invalid);
+  if(jungler) {
+    for(var i = 0; i < invalid.length; i++) {
+      if(invalid[i] === jungler) {
+        invalid.splice(i, 1);
+        break;
+      }
+    }
+    jungler['Role'] = 'Jungle';
+    valid.push(jungler);
+  }
+  return [valid, invalid];
+}
+
+/*
+ * Try to fix a missing support
+ * * Returns updated valid and invalid JSON objects
+ */
+function fixSupport(valid, invalid) {
+  // call fewest cs the support, including afk I guess
+  var missing = getMissingRoles(valid);
+  if(missing.indexOf('Support') !== -1) {
+    var smallestIndex = 0;
+    for(var i = 1; i < invalid.length; i++) {
+      if(invalid[i]['CS'] < invalid[smallestIndex]['CS']) {
+        smallestIndex = i;
+      }
+    }
+    invalid[smallestIndex]['Role'] = 'Support';
+    valid.push(invalid.splice(smallestIndex, 1)[0]);
+  }
+  return [valid, invalid];
+}
+
+/*
+ * Find out who is jungler from the already categorized players
+ * Valid is an array of json player objects
+ * Returns the jungle candidate or null if there are none
+ */
+function findJungler(valid) {
+  var jungle = [];
+  for(var i = 0; i < valid.length; i++) {
+    // find any potential jungle candidates and remove them
+    if(valid[i]['Smite']) {
+      jungle.push(valid[i]);
+      valid.splice(i, 1);
+    }
+  }
+  // if there's only one jungle candidate, return them
+  if(jungle.length === 1) {
+    return jungle[0];
+  }
+  // if there's multiple jungle candidates, find the one we're calling jungle
+  // put the rest back into valid, return the jungle candidate
+  else if(jungle.length > 1) {
+    var smallestIndex = 0;
+    for(var i = 1; i < jungle.length; i++) {
+      if(jungle[i]['CS'] < jungle[smallestIndex]['CS']) {
+        smallestIndex = i;
+      }
+    }
+    var jungler = jungle.splice(smallestIndex, 1);
+    for(var i = 0; i < jungle.length; i++) {
+      valid.push(jungle[i]);
+    }
+    return jungler;
+  }
+  else {
+    return null;
+  }
+}
+
+/*
+ * Check if there's an issue labeling the bot lane correctly
+ * Fix it if there is
+ * Returns an array [valid, invalid] as updated
+ */
+function fixDuoBot(valid, invalid) {
+  // first check if there is a duo bot issue
+  // if there is, decide who is adc, who is support, and fix
+  var indexes = [];
+  for(var i = 0; i < invalid.length; i++) {
+    if(invalid[i]['Role'] === 'Bot') {
+      indexes.push(i)
+    }
+  }
+  
+  if(indexes.length === 2) {
+    // check for if only one is the adc champion first, then do cs method
+    var champ0IsADC = checkChampIsADC(invalid[indexes[0]]['Champion']);
+    var champ1IsADC = checkChampIsADC(invalid[indexes[1]]['Champion']);
+    var adcIndex;
+    var supportIndex;
+    if(champ0IsADC && !champ1IsADC) {
+      adcIndex = indexes[0];
+      supportIndex = indexes[1];
+    }
+    else if(champ1IsADC && !champ0IsADC) {
+      adcIndex = indexes[1];
+      supportIndex = indexes[0];
+    }
+    else {
+      adcIndex = (invalid[indexes[0]]['CS'] >= invalid[indexes[1]]['CS']) ? 0 : 1;
+      supportIndex = (invalid[indexes[0]]['CS'] < invalid[indexes[1]]['CS']) ? 0 : 1;
+    }
+    
+    invalid[adcIndex]['Role'] = 'ADC';
+    invalid[supportIndex]['Role'] = 'Support';
+    valid.push(invalid.splice(adcIndex, 1)[0]);
+    // we have to find the new support index since it changes after we remove the adc item
+    for(var i = 0; i < invalid.length; i++) {
+      if(invalid[i]['Role'] === 'Support') {
+        valid.push(invalid.splice(i, 1)[0]);
+      }
+    }
+  }
+  // if we don't actually update anything, then we return the same and nothing changes, which is fine
+  return [valid, invalid];
+}
+
+/*
  * Get the name of a champion from its id
  */
 function getChampionTranslation(championId) {
   var url = 'https://global.api.pvp.net/api/lol/static-data/na/v1.2/champion/' + championId + '?api_key=' + getInfo('api_key');
-  var response = UrlFetchApp.fetch(url);
+  var response = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
   var status = checkStatusError(response);
   if(!status) {
     var json = response.getContentText();
@@ -576,13 +1101,17 @@ function getChampionTranslation(championId) {
   else if(status == 'exit') {
     return 'exit';
   }
-  else if(status) { //wait 10 seconds
+  else if(typeof(status) == 'number') {
+    Utilities.sleep(status);
+    return getChampionTranslation(championId);
+  }
+  else { // default wait 10 seconds if we fail but don't know why
     Utilities.sleep(10000);
     return getChampionTranslation(championId);
   }
 }
 
-/**
+/*
  * Get the result of a match
  * Returns the string 'Win' or 'Lose' accordingly
  */
@@ -590,7 +1119,7 @@ function getMatchResult(pobj) {
   return (pobj['stats']['winner'] ? 'Win' : 'Lose');
 }
 
-/**
+/*
  * Returns an array with the stats for a given player denoted by their pobj
  * In the order: kills, deaths, assists, kda
  */
@@ -603,7 +1132,7 @@ function getPlayerStats(pobj) {
   return stats;
 }
 
-/**
+/*
  * Gets my cs stats for the game
  * Returns an array with the cs info
  * In the order: cs, cs/min
@@ -614,7 +1143,7 @@ function getMyCS(pobj, length) {
   return [cs, csmin];
 }
 
-/**
+/*
  * Gets my League Stats
  * League Stats are tier, division, current LP, and promo status
  * Returns as an array, all are strings except LP which is an int
@@ -649,13 +1178,17 @@ function getMyLeagueStats() {
   else if(status == 'exit') {
     return 'exit';
   }
-  else if(status) { //wait 10 seconds then call again
+  else if(typeof(status) == 'number') {
+    Utilities.sleep(status);
+    return getMyLeagueStats();
+  }
+  else { // default wait 10 seconds if we fail but don't know why 
     Utilities.sleep(10000);
     return getMyLeagueStats();
   }
 }
 
-/**
+/*
  * Get a player's total damage dealt to champion stat
  * The pobj determines the player who's stats to get
  */
@@ -663,7 +1196,7 @@ function getChampionDamageDealt(pobj) {
   return pobj['stats']['totalDamageDealtToChampions'];
 }
 
-/**
+/*
  * Get the team's total damage
  * Takes the match to check for and the teamId for the team to check for
  */
@@ -678,7 +1211,7 @@ function getTotalTeamDamage(match, teamId) {
   return total;
 }
 
-/**
+/*
  * Get the deltas for all the time periods in the game
  * Takes the participant to get the deltas for and the row to insert into
  */
@@ -693,14 +1226,16 @@ function getDeltas(participant, row) {
   
   for(var deltaCount = 0; deltaCount <= 2; deltaCount++) {
     for(var deltaTimeCount = 0; deltaTimeCount <= 3; deltaTimeCount++) {
-      if(deltas[deltaTypes[deltaCount]][deltaTimes[deltaTimeCount]]) {
-        setCell(deltaColumns[deltaCount].concat(deltaColumnTimes[deltaTimeCount]), row, deltas[deltaTypes[deltaCount]][deltaTimes[deltaTimeCount]]);
+      if(deltas[deltaTypes[deltaCount]]) {
+        if(deltas[deltaTypes[deltaCount]][deltaTimes[deltaTimeCount]]) {
+          setCell(deltaColumns[deltaCount].concat(deltaColumnTimes[deltaTimeCount]), row, deltas[deltaTypes[deltaCount]][deltaTimes[deltaTimeCount]]);
+        }
       }
     }
   }
 }
 
-/**
+/*
  * Checks if we are duoing and sets if we are
  * Takes the match, the row, and an array of player names as strings
  */
@@ -726,7 +1261,7 @@ function setDuoer(match, row, players) {
   }   
 }
 
-/**
+/*
  * Get the number of dragons and barons for each team
  */
 function getDragonsBarons(match, teamId) {
@@ -741,14 +1276,18 @@ function getDragonsBarons(match, teamId) {
   return neutralObjStats;
 }
   
-/**
+/*
  * Get the bans, in order of ban
  */
 function getBans(match) {
   var bans = match['teams'][0]['bans'].concat(match['teams'][1]['bans']);
-  var s = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = s.getSheetByName('Data');
   var champs = [];
+  /* note that we do a hack here where we just assume ban[i] exists
+  ban[i] might not exist if the team didn't ban 3 champions
+  but javascript will just give us back a string undefined if it doesn't exist
+  as their way of sending outofbounds
+  and that works perfectly fine for us, so we just use it like that
+  */
   for(i = 1; i < bans.length+1; i++) {
     for(j = 0; j < bans.length; j++) {
       if(bans[j]['pickTurn'] == i) {
@@ -764,7 +1303,7 @@ function getBans(match) {
   return champs;
 }
 
-/**
+/*
  * Get stats on whether the given team got the objective first
  * First: blood, tower, inhib, dragon, baron
  */
@@ -778,7 +1317,7 @@ function getFirstStats(match, teamId) {
   return firstStats;
 }
 
-/**
+/*
  * Get an array of all the summoner names of the players on a team
  */
 function getTeamPlayers(match, teamId) {
@@ -803,35 +1342,25 @@ function getTeamPlayers(match, teamId) {
   return summoners;    
 }
 
-/**
- * Get the total kills for a team
+/*
+ * Get the total kills or deaths for a team
+ * type is a string either kills or deaths to denote which stat we get
  */
-function getTotalKills(match, teamId) {
+function getTotalKD(match, teamId, type) {
   var participants = match['participants'];
   var total = 0;
   for(i = 0; i < participants.length; i++) {
     if(participants[i]['teamId'] == teamId) {
-      total += participants[i]['stats']['kills']
+      total += participants[i]['stats'][type]
     }
+  }
+  if(total == 0) { // just so we don't break
+    total++;
   }
   return total;
 }
 
-/**
- * Get the total deaths for a team
- */
-function getTotalDeaths(match, teamId) {
-  var participants = match['participants'];
-  var total = 0;
-  for(i = 0; i < participants.length; i++) {
-    if(participants[i]['teamId'] == teamId) {
-      total += participants[i]['stats']['deaths']
-    }
-  }
-  return total;
-}
-
-/**
+/*
  * Get if we had the highest KDA on our team or not
  */
 function getHighestKDA(row) {
@@ -851,7 +1380,7 @@ function getHighestKDA(row) {
   }
 }
 
-/**
+/*
  * Get stats based on our wards
  * Wards placed, killed, and pinks
  */
@@ -859,7 +1388,7 @@ function getWardStats(pobj) {
   return [pobj['stats']['wardsPlaced'], pobj['stats']['wardsKilled'], pobj['stats']['visionWardsBoughtInGame']];
 }
 
-/**
+/*
  * Get stats based on our lane opponent, used to compare
  * teamId is the opponent's team ID
  */
@@ -869,7 +1398,10 @@ function getLaneOpponentStats(match, pobj, teamId) {
   var damage = getChampionDamageDealt(pobj); //damage dealt as a number
   var totalDamage = getTotalTeamDamage(match, teamId); //team's total damage
   var wards = getWardStats(pobj); //wards placed, wards killed, pinks placed
-  var totalKills = getTotalKills(match, teamId); // team's kills
+  var totalKills = getTotalKD(match, teamId, 'kills'); // team's kills
+  if(totalKills == 0) { // just so we don't break
+    totalKills = 1;
+  }
   var laneOppStats = {'kills' : stats['kills'],
                       'deaths': stats['deaths'],
                       'assists': stats['assists'],
@@ -883,21 +1415,27 @@ function getLaneOpponentStats(match, pobj, teamId) {
   return laneOppStats;
 }
 
-/**
+/*
  * Get and set our promos status as well as LP
  * oldLP is the value before the most recent update, curLP is the current LP
  * previousPromos is the 'Yes'/'No' string from the sheet
  * leaguePromos is either the promo game results string or 'No'
  */
 function getAndSetPromosLP(oldLP, curLP, previousPromos, leaguePromos, row) {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
   // we're either not in promos or in promos with no games played
   if(leaguePromos == 'NNN' || leaguePromos == 'NNNNN' || leaguePromos == 'No') {
-    setCell('Promos', row, 'No');
+    if(leaguePromos == 'No' && sheet.getRange(row-1, getSheetTranslationIndex('Promos')).getValue() == 'Yes') {
+      fixFinalPromoGame(row);
+    }
+    else {
+      setCell('Promos', row, 'No');
+    }
   }
   else { // we're in promos
     setCell('Promos', row, 'Yes');
   }
-  // TODO: we still need to add the case to fix the final game of promos
   
   setCell('Current LP', row, curLP);
   setCell('LP Change', row, curLP - oldLP);
@@ -911,21 +1449,114 @@ function getAndSetPromosLP(oldLP, curLP, previousPromos, leaguePromos, row) {
   }
 }
 
-/**
- * Checks if the response code has an error
- * Returns false if we got 200 OK, true if for some reason we failed
- * Displays alerts to help the user
+/*
+ * Fix the final promo game if we detect it might not be tracked
+ * Remember that Riot won't tell us we're in promos when we check the final game
  */
-function checkStatusError(response) {
-  // TODO: check for the 429 code wait time in string and wait that time instead
-  // NOTE: this is not done because Riot's responses don't always include it, and our timeout codes never got that field
-  var code = response.getResponseCode();
+function fixFinalPromoGame(row) {
+  // determine if we've played the right amount of promo games or not
+  // we needed 2 wins or losses (3 if in division 1 promos)
+  // if we haven't gotten enough, then correct the current game to be promos
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
+  var division = sheet.getRange(row - 1, getSheetTranslationIndex('Promos')).getValue();
+  var wins = 0;
+  var losses = 0;
+  var winsNeeded = (division === 'I' ? 3 : 2);
+  var lossesNeeded = winsNeeded;
+  var i = row - 1;
+  while(sheet.getRange(i, getSheetTranslationIndex('Promos')).getValue() == 'Yes') {
+    if(sheet.getRange(i, getSheetTranslationIndex('Result')).getValue() == 'Win') {
+      wins++;
+    }
+    else {
+      losses++;
+    }
+    i--;
+  }
+  if(wins == winsNeeded || losses == lossesNeeded) {
+    setCell('Promos', row, 'No');
+  }
+  else { // we didn't have enough wins/losses to finish promos so this game must have been a promo game
+    setCell('Promos', row, 'Yes');
+  }
+} 
+
+/*
+ * Fix any row that has some information wrong
+ * Requires the user to specify the row to update
+ */
+function fixRow() {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  var row = getInfo('correct_row');
+  if(!row) {
+    return;
+  }
+  var matchId = sheet.getRange(row , getSheetTranslationIndex('Match Id')).getValue();
+  if(matchId) {
+    populate([matchId], row, true); // true prevents us from updating the league info
+  }
+  // this only happens if matchId is empty, and matchId gets filled in every row, guaranteed
+  // so the only way this happens is if they supply an empty row
+  else {
+    Browser.msgBox("Error, row does not contain valid data to correct");
+  }
+}  
+
+/*
+ * Get the patch version as a string
+ */
+function getPatch(match) {
+  // to remove the extra version info we don't need, we only want major.minor
+  var patch = match['matchVersion'].split('.');
+  return patch[0].concat('.').concat(patch[1]);
+}
+
+/*
+ * Private function
+ * Used to add new columns and populate data for existing entries
+ */
+function fixColumn() {
+  var columns = ['Patch'];
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  for(var i = 520; i < getFirstEmptyRow(); i++) {
+    var matchId = sheet.getRange(i , getSheetTranslationIndex('Match Id')).getValue();
+    var match = getMatch(matchId);
+    var patch = getPatch(match);
+    setCell('Patch', i, patch);
+  }
+}
+
+/*
+ * Get the current patch based on our last match
+ * This is used to assist in our filtering data by patch
+ */
+function getCurrentPatch() {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  return sheet.getRange(getFirstEmptyRow()-1, getSheetTranslationIndex('Patch')).getValue();
+}
+
+/*
+ * Checks if the response code has an error
+ * Returns false if we got 200 OK, true if for some reason we failed
+ * Returns "exit" if we should be terminating the program
+ * Returns an integer that specifies the timeout period if we get 429
+ * Displays alerts to help the user if we get a timeout code from Riot
+ */
+function checkStatusError(response) {
+  var code = response.getResponseCode();
   if(code == 200) {
     return false;
   }
-  else if(code == 429) { // calling function will wait 10s and call itself again
+  // calling function will wait for the specified period OR a default of 10s
+  // if the error persists and keeps retrying, the script will timeout after 5 minutes by Google's enforced limit on scripts
+  else if(code == 429) { 
+    if(response.getAllHeaders()['Retry-After']) {
+      return response.getAllHeaders()['Retry-After'];
+    }
     return true;
   }
   // returning exit here will cause all the functions to return, and eventually stop the code
