@@ -50,3 +50,6 @@ Unfortunately, there are some issues with the spreadsheet. Fortunately, they are
 7. The percentage tracking on the additional spreadsheets rely on a specific cell being the grand total. If it's not tracking correctly, it's because the grand total cell is wrong. Fix it by changing it in the formula to the correct one.
 8. I have not tested it for regions other than NA. If it does not work, sorry about that. Let me know and I'll see what I can do.
 9. If you have changed your summoner name, it will fail on games that used your old name. You will need to run it with the old name for those set of games. You will also want to run it with the Run Initial option, because we need to skip checking your league information. It will try to search for your stats, but it won't find your old summoner name, so we'll want to skip it altogether to save time.
+
+# Copyright
+LeagueRankedScript isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing League of Legends. League of Legends and Riot Games are trademarks or registered trademarks of Riot Games, Inc. League of Legends © Riot Games, Inc.
