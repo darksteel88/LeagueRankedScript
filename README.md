@@ -28,8 +28,8 @@ I ultimately decided to do it in Google Sheets because of the benefits it offers
 * Set the summoner_name to whatever your summoner name is.
 * Set the API key to whatever your API key is. If you do not have one, you can get one at developer.riotgames.com. Remember that you need to keep this private, please do not share this with anyone under any circumstances.
 ![alt tag](http://i.imgur.com/Rd28SSS.png)
-5. Click Ranked-> Run. The spreadsheet will begin to populate data
-6. On the initial run, it may not complete all the data. This is because there is a maximum time of 5 minutes for the script. If it does not complete, just run it again and it will continue from where it left off. **You will likely need to run it several times to populate all the data.**
+5. Click Ranked-> Run Initial. The spreadsheet will begin to populate data. 
+6. On the initial run, it may not complete all the data. This is because there is a maximum time of 5 minutes for the script. If it does not complete, just run it again and it will continue from where it left off. **You will likely need to run it several times to populate all the data.** Please select Run Initial as the option while populating it from scratch. Later on, you will want to select Run. The Run Initial option is optimized to save time by not populating league/tier/division/LP/promo information.
 
 # My Spreadsheet
 A viewable copy of my Spreadsheet can be found here:
@@ -47,4 +47,4 @@ Unfortunately, there are some issues with the spreadsheet. Fortunately, they are
 6. AFKs are automatically tracked, but it can't be done accurately. This is because the way we have to check, we can't guarantee it. As a result, if you notice anything wrong, you can fix it yourself, it's easy to do.
 7. The percentage tracking on the additional spreadsheets rely on a specific cell being the grand total. If it's not tracking correctly, it's because the grand total cell is wrong. Fix it by changing it in the formula to the correct one.
 8. I have not tested it for regions other than NA. If it does not work, sorry about that. Let me know and I'll see what I can do.
-9. If you have changed your summoner name, it will fail on games that used your old name. You will need to run it with the old name for those set of games.
+9. If you have changed your summoner name, it will fail on games that used your old name. You will need to run it with the old name for those set of games. You will also want to run it with the Run Initial option, because we need to skip checking your league information. It will try to search for your stats, but it won't find your old summoner name, so we'll want to skip it altogether to save time.
