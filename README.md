@@ -19,11 +19,15 @@ I ultimately decided to do it in Google Sheets because of the benefits it offers
 # How to Setup
 1. Go to https://docs.google.com/spreadsheets/d/1WoQA9mYR7mir8W_ezfbhdxO9oUIVD5zl42rKd5j3VP4/edit?usp=sharing and make a copy of the spreadsheet. This is a template spreadsheet for others to use.
 2. Click on Tools-> Script Editor, a new tab will open up. Paste the code in there and save it. You can call it whatever you like.
+![alt tag](http://i.imgur.com/s4Rzz1A.png)
+![alt tag](http://i.imgur.com/fatevSM.png)
 3. Re-open the spreadsheet. You should now see a new tab Ranked at the top. If you do, you've added the code correctly. If not, see step 2 again.
+![alt tag](http://i.imgur.com/L8Wq72a.png)
 4. Click on the configuration tab at the bottom, you need to configure a few items first:
 * Set the region to whatever your region is. A list of them is provided as a note on the spreadsheet. Note that I have only tested this for the NA region, it may not work properly for other regions.
 * Set the summoner_name to whatever your summoner name is.
 * Set the API key to whatever your API key is. If you do not have one, you can get one at developer.riotgames.com. Remember that you need to keep this private, please do not share this with anyone under any circumstances.
+![alt tag](http://i.imgur.com/Rd28SSS.png)
 5. Click Ranked-> Run. The spreadsheet will begin to populate data
 6. On the initial run, it may not complete all the data. This is because there is a maximum time of 5 minutes for the script. If it does not complete, just run it again and it will continue from where it left off. 
 
