@@ -313,7 +313,6 @@ function columnToLetter(column) {
 function setCell(column, row, value) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
-  //sheet.appendRow([column, row, value]);
   sheet.getRange(getSheetTranslation(column)+row).setValue(value);
 }
 
@@ -1122,12 +1121,10 @@ function fixDuoBot(valid, invalid) {
     
     invalid[adcIndex]['Role'] = 'ADC';
     invalid[supportIndex]['Role'] = 'Support';
-    //sheet.appendRow([JSON.stringify(invalid[adcIndex]), JSON.stringify(invalid[supportIndex])]);
     valid.push(invalid.splice(adcIndex, 1)[0]);
     // we have to find the new support index since it changes after we remove the adc item
     for(var i = 0; i < invalid.length; i++) {
       if(invalid[i]['Role'] === 'Support') {
-        //sheet.appendRow(['test', JSON.stringify(invalid[i])]);
         valid.push(invalid.splice(i, 1)[0]);
       }
     }
@@ -1604,7 +1601,6 @@ function getResultPercentageEnemies() {
       data[champ][result]++;
     }
   }
-  sheet.appendRow(JSON.stringify(data));
 }      
 
 /*
