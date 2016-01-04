@@ -109,6 +109,9 @@ function getInfo(value) {
  */
 function findUniqueMatchIds() {
   match_history = getMatchHistoryIds();
+  if(match_history === 'exit') {
+    return 'exit';
+  }
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
   var values = s.getDataRange().getValues();
@@ -336,7 +339,7 @@ function getMatchHistoryIds(mode) {
     var sheet = s.getSheetByName('Data');
     var matchIds = [];
     if(!data["matches"]) {
-      return exit;
+      return "exit";
     }
     for(i = 0; i < data["matches"].length; i++) {
       if(data["matches"][i]["matchId"] != "undefined") {
