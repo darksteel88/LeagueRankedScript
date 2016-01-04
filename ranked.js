@@ -11,6 +11,7 @@ function onOpen(e) {
  * Gets an array of all games we haven't recorded and then populates the data for it on our sheet
  */
 function run() {
+  checkPartialRow(getFirstEmptyRow()-1); // delete a potentially partially filled row
   var match_history = findUniqueMatchIds();
   if(!match_history || match_history == 'exit') {
     return 'exit';
@@ -46,6 +47,14 @@ function deleteRow(row) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
   sheet.deleteRow(row);
+}
+
+function checkPartialRow(row) {
+  var s = SpreadsheetApp.getActiveSpreadsheet()
+  var sheet = s.getSheetByName('Data');
+  if(sheet.getRange(row, getSheetTranslationIndex('Their AFK')).getValue() === '') {
+    deleteRow(row);
+  }
 }
 
 /*
