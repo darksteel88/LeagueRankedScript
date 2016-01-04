@@ -26,11 +26,17 @@ function run() {
  * Build the menu
  */
 function buildMenu(e) {
+  // building the menu works differently if it's fully published as an add-on, so we'll have to do it two ways
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('Ranked')
     .addItem('Run', 'run')
     .addItem('Correct Row', 'fixRow')
     .addToUi();
+  /*var menu = SpreadsheetApp.getUi().createAddonMenu();
+  if(e && e.authMode == ScriptApp.AuthMode.NONE) {
+    menu.addItem('Run', 'run');
+    menu.addItem('Correct Row', 'fixRow'); // since we can't actually pass arguments
+  }*/
 }
 
 /*
@@ -271,6 +277,7 @@ function columnToLetter(column) {
 function setCell(column, row, value) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
+  //sheet.appendRow([column, row, value]);
   sheet.getRange(getSheetTranslation(column)+row).setValue(value);
 }
 
@@ -284,7 +291,7 @@ function getSummonerId() {
   if(!status) {
     var json = response.getContentText();
     var data = JSON.parse(json);  
-    return data[getInfo('summoner_name')]['id'];
+    return data[getInfo('summoner_name').toLowerCase()]['id'];
   }
   else if(status == 'exit') {
     return 'exit';
@@ -319,6 +326,9 @@ function getMatchHistoryIds(mode) {
     var s = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = s.getSheetByName('Data');
     var matchIds = [];
+    if(!data["matches"]) {
+      return exit;
+    }
     for(i = 0; i < data["matches"].length; i++) {
       if(data["matches"][i]["matchId"] != "undefined") {
         matchIds.push(data["matches"][i]["matchId"]);
@@ -1074,10 +1084,12 @@ function fixDuoBot(valid, invalid) {
     
     invalid[adcIndex]['Role'] = 'ADC';
     invalid[supportIndex]['Role'] = 'Support';
+    //sheet.appendRow([JSON.stringify(invalid[adcIndex]), JSON.stringify(invalid[supportIndex])]);
     valid.push(invalid.splice(adcIndex, 1)[0]);
     // we have to find the new support index since it changes after we remove the adc item
     for(var i = 0; i < invalid.length; i++) {
       if(invalid[i]['Role'] === 'Support') {
+        //sheet.appendRow(['test', JSON.stringify(invalid[i])]);
         valid.push(invalid.splice(i, 1)[0]);
       }
     }
@@ -1537,6 +1549,71 @@ function getCurrentPatch() {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
   return sheet.getRange(getFirstEmptyRow()-1, getSheetTranslationIndex('Patch')).getValue();
+}
+
+function getResultPercentageEnemies() {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  var data = {};
+  var lanes = ['Top', 'Jungle', 'Mid', 'ADC', 'Support'];
+  for(var i = 1; i < getFirstEmptyRow(); i++) {
+    var result  = sheet.getRange(i, getSheetTranslationIndex('Result'));
+    for(pos in lanes) {
+      var champ = sheet.getRange(i, getSheetTranslationIndex('Their '.concat(lanes[pos])));
+      if(!data[champ]) {
+        data[champ] = {'Win':0, 'Loss': 0};
+      }
+      data[champ][result]++;
+    }
+  }
+  sheet.appendRow(JSON.stringify(data));
+}      
+
+/*
+ * Calculate the KDA variance of all champions
+ */
+function kdaVariance() {
+  var stats = {};
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  var roles = ['Top', 'Jungle', 'Mid', 'ADC', 'Support'];
+  var teams = ['My ', 'Their '];
+  for(var i = 2; i < getFirstEmptyRow(); i++) {
+    for(var j = 0; j < teams.length; j++) {
+      for(var k = 0; k < roles.length; k++) {
+        var champ = sheet.getRange(i, getSheetTranslationIndex(teams[j].concat(roles[k]))).getValue();
+        var kda = sheet.getRange(i, getSheetTranslationIndex(teams[j].concat(roles[k]).concat(' KDA'))).getValue();
+        if(stats[champ]) {
+          stats[champ].push(kda);
+        }
+        else {
+          stats[champ] = [kda];
+        }
+      }
+    }
+  }
+  //have all the kdas in arrays in the json objects
+  var data = []; // 2d array of [champion, variance]
+  for(var key in stats) {
+    data.push([key, variance(stats[key], average(stats[key]))]);
+  }
+  return data;
+}
+
+function average(numbers) {
+  var total = 0;
+  for(var i = 0; i < numbers.length; i++) {
+    total += numbers[i];
+  }
+  return total / numbers.length;
+}
+
+function variance(numbers, average) {
+  var newNumbers = [];
+  for(var i = 0; i < numbers.length; i++) {
+    newNumbers.push(Math.pow((numbers[i] - average), 2));
+  }
+  return average(newNumbers);
 }
 
 /*
