@@ -29,7 +29,7 @@ I ultimately decided to do it in Google Sheets because of the benefits it offers
 * Set the API key to whatever your API key is. If you do not have one, you can get one at developer.riotgames.com. Remember that you need to keep this private, please do not share this with anyone under any circumstances.
 ![alt tag](http://i.imgur.com/Rd28SSS.png)
 5. Click Ranked-> Run Initial. The spreadsheet will begin to populate data. 
-5a. You may receive a notification about authorizing the application. You will not be able to proceed until you accept it. None of your personal information is stored in this application.
+You may receive a notification about authorizing the application. You will not be able to proceed until you accept it. None of your personal information is stored in this application.
 ![alt tag](https://developers.google.com/apps-script/images/new-auth-2.png)
 6. On the initial run, it may not complete all the data. This is because there is a maximum time of 5 minutes for the script. If it does not complete, just run it again and it will continue from where it left off. **You will likely need to run it several times to populate all the data.** Please select Run Initial as the option while populating it from scratch. Later on, you will want to select Run. The Run Initial option is optimized to save time by not populating league/tier/division/LP/promo information.
 
