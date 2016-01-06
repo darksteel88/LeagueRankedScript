@@ -951,6 +951,7 @@ function fixSingleRole(valid, player, role) {
     if(!jungler) { // nobody has smite so we're jungle by default
       player['Role'] = role;
       valid.push(player);
+      return valid;
     }
     player['Role'] = jungler['Role'];
     jungler['Role'] = 'Jungle';
