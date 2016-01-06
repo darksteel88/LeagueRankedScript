@@ -242,7 +242,7 @@ function populate(match_history, specificRow, discludeLeague) {
     setCell('Wards Destroyed', row, wardStats[1]);
     setCell('Vision Wards Bought', row, wardStats[2]);
     getDeltas(pobj, row);
-    var oppPobj = getOpponentParticipantObj(match, getMyRole(row), teamId);
+    var oppPobj = getOpponentParticipantObj(match, row, getMyRole(row), teamId);
     var laneOpponentStats = getLaneOpponentStats(match, oppPobj, getOpponentTeamId(teamId));
     setCell('Total CS Difference', row, cs[0]-laneOpponentStats['minions']);
     setCell('Kill Diff', row, stats['kills']-laneOpponentStats['kills']);
@@ -469,13 +469,16 @@ function getParticipantObj(match, pid) {
 /*
  * Get the participant object for our lane opponent
  */
-function getOpponentParticipantObj(match, role, teamId) {
+function getOpponentParticipantObj(match, row, role, teamId) {
+  // we would normally calculate this using their already given id, but that clearly doesn't work since role can be wrong
+  // instead we find the PID that corresponds to the champion on their team with the same role
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');  
+  var theirChampion = sheet.getRange(row, getSheetTranslationIndex('Their '.concat(role))).getValue();
   var participants = match['participants'];
   for(i = 0; i < participants.length; i++) {
-    if(participants[i]['teamId'] != teamId) {
-      if(getRoleFromParticipantObj(participants[i]) == role) {
-        return participants[i];
-      }
+    if(theirChampion === getChampionTranslation(participants[i])) {
+      return participants[i];
     }
   }
 }
