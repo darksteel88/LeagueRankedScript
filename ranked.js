@@ -477,7 +477,7 @@ function getOpponentParticipantObj(match, row, role, teamId) {
   var theirChampion = sheet.getRange(row, getSheetTranslationIndex('Their '.concat(role))).getValue();
   var participants = match['participants'];
   for(i = 0; i < participants.length; i++) {
-    if(theirChampion === getChampionTranslation(participants[i])) {
+    if(theirChampion === getChampionTranslation(participants[i]['championId'])) {
       return participants[i];
     }
   }
