@@ -1092,15 +1092,21 @@ function findJungler(valid) {
 /*
  * Check if there's an issue labeling the bot lane correctly
  * Fix it if there is
+ * Takes in valid and invalid arrays of objects to fix
+ * Also takes in match because we need to potentially check the DUO_SUPPORT MID flag
  * Returns an array [valid, invalid] as updated
  */
-function fixDuoBot(valid, invalid) {
+function fixDuoBot(valid, invalid, match) {
   // first check if there is a duo bot issue
   // if there is, decide who is adc, who is support, and fix
   var indexes = [];
+  // this fails in scenarios where one of the two players is AFK and gets duo_mid
   for(var i = 0; i < invalid.length; i++) {
     if(invalid[i]['Role'] === 'Bot') {
-      indexes.push(i)
+      indexes.push(i);
+    }
+    else if(checkDuoSupportMid(invalid[i]['Champion'], match)) {
+      indexes.push(i);
     }
   }
   
@@ -1135,6 +1141,26 @@ function fixDuoBot(valid, invalid) {
   }
   // if we don't actually update anything, then we return the same and nothing changes, which is fine
   return [valid, invalid];
+}
+
+/*
+ * Check if a champion got populated as the DUO_SUPPORT mid role
+ */
+function checkDuoSupportMid(champion, match) {
+  // need to check if the champion is AFK, essentially
+  // Riot will tell us by the DUO_SUPPORT
+  // important for fixing bot role issues when one player was AFK the entire time because they don't come up bot at all
+
+  var participants = match['participants'];
+  for(var i = 0; i < participants.length; i++) {
+    if(getChampionTranslation(participants[i]['championId']) === champion) {
+      if(participants[i]['timeline']['role'] === 'DUO_SUPPORT' && participants[i]['timeline']['lane'] === 'MIDDLE') {
+        return true;
+      }
+      return false;
+    }
+  }
+  return false;
 }
 
 /*
