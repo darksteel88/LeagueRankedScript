@@ -350,7 +350,7 @@ function getMatchHistoryIds(mode) {
   // we get match ids because the match history only has our information
   // and since we want to track other player kdas then we're going to need the full match info per match
   // NOTE: season is going to have to be changed each season
-  mode = typeof mode !== 'undefined' ? mode : '?rankedQueues=RANKED_SOLO_5x5';
+  mode = typeof mode !== 'undefined' ? mode : '?rankedQueues=TEAM_BUILDER_DRAFT_RANKED_5x5';
   season = getInfo('season') !== '' ? '&seasons=' + getInfo('season') : '';
   var url = 'https://' + getInfo('region') + '.api.pvp.net/api/lol/' + getInfo('region') + '/v2.2' + '/matchlist/by-summoner/' + getInfo('summoner_id') + mode + season + '&api_key=' + getInfo('api_key'); 
   var response = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
