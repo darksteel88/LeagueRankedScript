@@ -218,12 +218,14 @@ function populate(match_history, specificRow, discludeLeague) {
       setDuoer(match, row, getTeamPlayers(match, teamId));
     }
     var bans = getBans(match);
-    setCell('Ban 1', row, bans[0]);
-    setCell('Ban 2', row, bans[1]);
-    setCell('Ban 3', row, bans[2]);
-    setCell('Ban 4', row, bans[3]);
-    setCell('Ban 5', row, bans[4]);
-    setCell('Ban 6', row, bans[5]);
+    if(bans) {
+      setCell('Ban 1', row, bans[0]);
+      setCell('Ban 2', row, bans[1]);
+      setCell('Ban 3', row, bans[2]);
+      setCell('Ban 4', row, bans[3]);
+      setCell('Ban 5', row, bans[4]);
+      setCell('Ban 6', row, bans[5]);
+    }
     var neutral = getDragonsBarons(match, teamId);
     setCell('My Dragons', row, neutral['myDragons']);
     setCell('Enemy Dragons', row, neutral['enemyDragons']);
@@ -1357,6 +1359,9 @@ function getDragonsBarons(match, teamId) {
  * Get the bans, in order of ban
  */
 function getBans(match) {
+  if(!match['teams'][0]['bans'] || !match['teams'][1]['bans']) {
+    return;
+  }
   var bans = match['teams'][0]['bans'].concat(match['teams'][1]['bans']);
   var champs = [];
   /* note that we do a hack here where we just assume ban[i] exists
