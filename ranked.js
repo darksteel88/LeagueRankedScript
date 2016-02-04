@@ -455,7 +455,6 @@ function getMatchHistoryIds(mode) {
         matchIds.push(data["matches"][i]["matchId"]);
       }
     }
-    Logger.log(matchIds);
     return matchIds;
   }
   else if(status == 'exit') {
