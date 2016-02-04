@@ -167,11 +167,19 @@ function populate(match_history, specificRow, discludeLeague) {
     if(match == 'exit') {
       return 'exit';
     }
-    setCell('Patch', row, getPatch(match));
+    if(checkHeaderExists('Patch')) {
+      setCell('Patch', row, getPatch(match));
+    }
     var dt = getMatchDate(match);
-    setCell('Date', row, dt[0]);
-    setCell('Time', row, dt[1]);
-    setCell('Length', row, getMatchLength(match));
+    if(checkHeaderExists('Date')) {
+       setCell('Date', row, dt[0]);
+    }
+    if(checkHeaderExists('Time')) {
+      setCell('Time', row, dt[1]);
+    }
+    if(checkHeaderExists('Length')) {
+      setCell('Length', row, getMatchLength(match));
+    }
     var pid = getMatchParticipantId(match);
     if(pid === 'exit') {
       return 'exit';
@@ -183,8 +191,10 @@ function populate(match_history, specificRow, discludeLeague) {
       return 'exit';
     }
     setCell('My Champion', row, myChamp);
-    var side = (pid <= 5? 'Blue' : 'Red'); // pid 1-5 is blue side, 6-10 is red side
-    setCell('Side', row, side);
+    if(checkHeaderExists('Side')) {
+      var side = (pid <= 5? 'Blue' : 'Red'); // pid 1-5 is blue side, 6-10 is red side
+      setCell('Side', row, side);
+    }
     setCell('Result', row, getMatchResult(pobj));
     var stats = getPlayerStats(pobj);
     setCell('Kills', row, stats['kills']);
@@ -194,69 +204,124 @@ function populate(match_history, specificRow, discludeLeague) {
     var cs = getMyCS(pobj, getMatchLength(match));
     setCell('CS', row, cs[0]);
     setCell('CS/Min', row, cs[1]);
-    getAndSetChampionStats(match, getMatchTeamId(pobj), row);
-    setCell('My Role', row, getMyRole(row));
-    setCell('Kill Contribution', row, (stats['kills'] + stats['deaths'])/getTotalKD(match, teamId, 'kills'));
-    setCell('Death Contribution', row, stats['deaths']/getTotalKD(match, teamId, 'deaths'));
-    setCell('Highest KDA', row, getHighestKDA(row));
+    var allRoles = ['My Top', 'My Jungle', 'My Mid', 'My ADC', 'My Support', 'Their Top', 'Their Jungle', 'Their Mid', 'Their ADC', 'Their Support'];
+    for(var j = 0; j < allRoles.length; j++) {
+      if(checkHeaderExists(allRoles[j])) { // we assume either all or none exist
+        getAndSetChampionStats(match, getMatchTeamId(pobj), row);
+        setCell('My Role', row, getMyRole(row));
+        break;
+      }
+      else {
+        setCell('My Role', row, getRoleFromParticipantObj(pobj));
+      }
+    }
+    if(checkHeaderExists('Kill Contribution')) {
+      setCell('Kill Contribution', row, (stats['kills'] + stats['deaths'])/getTotalKD(match, teamId, 'kills'));
+    }
+    if(checkHeaderExists('Death Contribution')) {
+      setCell('Death Contribution', row, stats['deaths']/getTotalKD(match, teamId, 'deaths'));
+    }
+    if(checkHeaderExists('Highest KDA')) {
+      setCell('Highest KDA', row, getHighestKDA(row));
+    }
     if(!discludeLeague) {
-      leagueStats = getMyLeagueStats(); 
-      if(leagueStats == 'exit') {
-        return 'exit';
+      if(checkHeaderExists('League') || checkHeaderExists('Division') || checkHeaderExists('Current LP') || checkHeaderExists('Promos')) {
+        leagueStats = getMyLeagueStats(); 
+        if(leagueStats == 'exit') {
+          return 'exit';
+        }
       }
       // will come up undefined if we've changed our summoner name previously
       if(leagueStats) {
-        setCell('League', row, leagueStats['tier']);
-        setCell('Division', row, leagueStats['division']);
-        setCell('Current LP', row, leagueStats['lp']);
-        var oldLP = sheet.getRange(row-1, getSheetTranslationIndex('Current LP')).getValue();
-        getAndSetPromosLP(oldLP, leagueStats['lp'], sheet.getRange(row-1, getSheetTranslationIndex('Promos')).getValue(), leagueStats['promos'], row);
+        if(checkHeaderExists('League')) {
+          setCell('League', row, leagueStats['tier']);
+        }
+        if(checkHeaderExists('Division')) {
+          setCell('Division', row, leagueStats['division']);
+        }
+        if(checkHeaderExists('Current LP')) {
+          setCell('Current LP', row, leagueStats['lp']);
+        }
+        if(checkHeaderExists('Promos')) {
+          var oldLP = sheet.getRange(row-1, getSheetTranslationIndex('Current LP')).getValue();
+          getAndSetPromosLP(oldLP, leagueStats['lp'], sheet.getRange(row-1, getSheetTranslationIndex('Promos')).getValue(), leagueStats['promos'], row);
+        }
       }
     }
-    // because searching through n rows is potentially computationally expensive, give the user the option to disable to save time
-    if(getInfo('check_duoer')) {
-      setDuoer(match, row, getTeamPlayers(match, teamId));
+    for(var j = 1; j <= 6; j++) {
+      if(checkHeaderExists('Ban '.concat(j))) {
+        var bans = getBans(match);
+        if(bans) {
+          setCell('Ban 1', row, bans[0]);
+          setCell('Ban 2', row, bans[1]);
+          setCell('Ban 3', row, bans[2]);
+          setCell('Ban 4', row, bans[3]);
+          setCell('Ban 5', row, bans[4]);
+          setCell('Ban 6', row, bans[5]);
+        }
+      }
     }
-    var bans = getBans(match);
-    if(bans) {
-      setCell('Ban 1', row, bans[0]);
-      setCell('Ban 2', row, bans[1]);
-      setCell('Ban 3', row, bans[2]);
-      setCell('Ban 4', row, bans[3]);
-      setCell('Ban 5', row, bans[4]);
-      setCell('Ban 6', row, bans[5]);
+    if(checkHeaderExists('My Dragons') || checkHeaderExists('Enemy Dragons') || checkHeaderExists('My Barons') || checkHeaderExists('Enemy Barons')) {
+      var neutral = getDragonsBarons(match, teamId);
+      setCell('My Dragons', row, neutral['myDragons']);
+      setCell('Enemy Dragons', row, neutral['enemyDragons']);
+      setCell('My Barons', row, neutral['myBarons']);
+      setCell('Enemy Barons', row, neutral['enemyBarons']);
     }
-    var neutral = getDragonsBarons(match, teamId);
-    setCell('My Dragons', row, neutral['myDragons']);
-    setCell('Enemy Dragons', row, neutral['enemyDragons']);
-    setCell('My Barons', row, neutral['myBarons']);
-    setCell('Enemy Barons', row, neutral['enemyBarons']);
-    var firstStats = getFirstStats(match, teamId);
-    setCell('First Blood', row, firstStats['firstBlood']);
-    setCell('First Tower', row, firstStats['firstTower']);
-    setCell('First Inhibitor', row, firstStats['firstInhibitor']);
-    setCell('First Dragon', row, firstStats['firstDragon']);
-    setCell('First Baron', row, firstStats['firstBaron']);
-    var damageToChamps = getChampionDamageDealt(pobj)/getTotalTeamDamage(match, teamId);
-    setCell('Damage to Champions', row, damageToChamps);
-    var wardStats = getWardStats(pobj); // wards placed, destroyed, vision bought
-    setCell('Wards Placed', row, wardStats[0]);
-    setCell('Wards Destroyed', row, wardStats[1]);
-    setCell('Vision Wards Bought', row, wardStats[2]);
-    getDeltas(pobj, row);
+    if(checkHeaderExists('First Blood') || checkHeaderExists('First Tower') || checkHeaderExists('First Inhibitor') || checkHeaderExists('First Dragon') || checkHeaderExists('First Baron')) {
+      var firstStats = getFirstStats(match, teamId);
+      setCell('First Blood', row, firstStats['firstBlood']);
+      setCell('First Tower', row, firstStats['firstTower']);
+      setCell('First Inhibitor', row, firstStats['firstInhibitor']);
+      setCell('First Dragon', row, firstStats['firstDragon']);
+      setCell('First Baron', row, firstStats['firstBaron']);
+    }
+    if(checkHeaderExists('Damage to Champions')) {
+      var damageToChamps = getChampionDamageDealt(pobj)/getTotalTeamDamage(match, teamId);
+      setCell('Damage to Champions', row, damageToChamps);
+    }
+    if(checkHeaderExists('Wards Placed') || checkHeaderExists('Wards Destroyed') || checkHeaderExists('Vision Wards Bought')) {
+      var wardStats = getWardStats(pobj); // wards placed, destroyed, vision bought
+      setCell('Wards Placed', row, wardStats[0]);
+      setCell('Wards Destroyed', row, wardStats[1]);
+      setCell('Vision Wards Bought', row, wardStats[2]);
+    }
+    getAndSetDeltas(pobj, row);
     var oppPobj = getOpponentParticipantObj(match, row, getMyRole(row), teamId);
     var laneOpponentStats = getLaneOpponentStats(match, oppPobj, getOpponentTeamId(teamId));
-    setCell('Total CS Difference', row, cs[0]-laneOpponentStats['minions']);
-    setCell('Kill Diff', row, stats['kills']-laneOpponentStats['kills']);
-    setCell('Death Diff', row, stats['deaths']-laneOpponentStats['deaths']);
-    setCell('Assist Diff', row, stats['assists']-laneOpponentStats['assists']);
-    setCell('KDA Diff', row, stats['kda']-laneOpponentStats['kda']);
-    setCell('Damage to Champions Diff', row, damageToChamps-laneOpponentStats['damageToChamps']);
-    setCell('Wards Placed Diff', row, wardStats[0]-laneOpponentStats['wardsPlaced']);
-    setCell('Wards Destroyed Diff', row, wardStats[1]-laneOpponentStats['wardsDestroyed']);
-    setCell('Vision Wards Bought Diff', row, wardStats[2]-laneOpponentStats['visionWardsBought']);
-    setCell('Kill Contribution Diff', row, (stats['kills'] + stats['assists'])/getTotalKD(match, teamId, 'kills')-laneOpponentStats['killContributionPercentage']);   
-    checkAllAFK(match, teamId, row);
+    if(checkHeaderExists('Total CS Difference')) {
+      setCell('Total CS Difference', row, cs[0]-laneOpponentStats['minions']);
+    }
+    if(checkHeaderExists('Kill Diff')) {
+      setCell('Kill Diff', row, stats['kills']-laneOpponentStats['kills']);
+    }
+    if(checkHeaderExists('Death Diff')) {
+      setCell('Death Diff', row, stats['deaths']-laneOpponentStats['deaths']);
+    }
+    if(checkHeaderExists('Assist Diff')) {
+      setCell('Assist Diff', row, stats['assists']-laneOpponentStats['assists']);
+    }
+    if(checkHeaderExists('KDA Diff')) {
+      setCell('KDA Diff', row, stats['kda']-laneOpponentStats['kda']);
+    }
+    if(checkHeaderExists('Damage to Champions Diff')) {
+      setCell('Damage to Champions Diff', row, damageToChamps-laneOpponentStats['damageToChamps']);
+    }
+    if(wardStats && checkHeaderExists('Wards Placed Diff')) {
+      setCell('Wards Placed Diff', row, wardStats[0]-laneOpponentStats['wardsPlaced']);
+    }
+    if(wardStats && checkHeaderExists('Wards Destroyed Diff')) {
+      setCell('Wards Destroyed Diff', row, wardStats[1]-laneOpponentStats['wardsDestroyed']);
+    }
+    if(wardStats && checkHeaderExists('Vision Wards Bought Diff')) {
+      setCell('Vision Wards Bought Diff', row, wardStats[2]-laneOpponentStats['visionWardsBought']);
+    }
+    if(checkHeaderExists('Kill Contribution Diff')) {
+      setCell('Kill Contribution Diff', row, (stats['kills'] + stats['assists'])/getTotalKD(match, teamId, 'kills')-laneOpponentStats['killContributionPercentage']);   
+    }
+    if(checkHeaderExists('My AFK')) {
+      checkAllAFK(match, teamId, row);
+    }
   }
 }
 
@@ -268,6 +333,7 @@ function getFirstEmptyRow() {
 
 /*
  * Get the cell letter for a specific column header
+ * Returns undefined if the column header does not exist
  */
 function getSheetTranslation(header) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
@@ -278,6 +344,7 @@ function getSheetTranslation(header) {
       return columnToLetter(j+1);
     }
   }
+  return undefined;
 }
 
 /*
@@ -315,7 +382,24 @@ function columnToLetter(column) {
 function setCell(column, row, value) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
-  sheet.getRange(getSheetTranslation(column)+row).setValue(value);
+  try {
+    sheet.getRange(getSheetTranslation(column)+row).setValue(value);
+  }
+  catch(e) {
+    Browser.msgBox("Error: could not find cell ".concat(column).concat(" . Please ensure it exists before continuing"));
+  }
+}
+
+function checkHeaderExists(header) {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  var data = sheet.getDataRange().getValues();
+  for(var j = 0; j < data[0].length; j++) {
+    if(data[0][j] == header) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /*
@@ -352,7 +436,7 @@ function getMatchHistoryIds(mode) {
   // we get match ids because the match history only has our information
   // and since we want to track other player kdas then we're going to need the full match info per match
   // NOTE: season is going to have to be changed each season
-  mode = typeof mode !== 'undefined' ? mode : '?rankedQueues=TEAM_BUILDER_DRAFT_RANKED_5x5';
+  mode = typeof mode !== 'undefined' ? mode : '?rankedQueues=TEAM_BUILDER_DRAFT_RANKED_5x5,RANKED_SOLO_5x5';
   season = getInfo('season') !== '' ? '&seasons=' + getInfo('season') : '';
   var url = 'https://' + getInfo('region') + '.api.pvp.net/api/lol/' + getInfo('region') + '/v2.2' + '/matchlist/by-summoner/' + getInfo('summoner_id') + mode + season + '&api_key=' + getInfo('api_key'); 
   var response = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
@@ -371,6 +455,7 @@ function getMatchHistoryIds(mode) {
         matchIds.push(data["matches"][i]["matchId"]);
       }
     }
+    Logger.log(matchIds);
     return matchIds;
   }
   else if(status == 'exit') {
@@ -1294,7 +1379,7 @@ function getTotalTeamDamage(match, teamId) {
  * Get the deltas for all the time periods in the game
  * Takes the participant to get the deltas for and the row to insert into
  */
-function getDeltas(participant, row) { 
+function getAndSetDeltas(participant, row) { 
   //Note that due to the nature of how they were implemented by Riot the last delta is 30m to end of game
   var deltaTypes = ['creepsPerMinDeltas', 'goldPerMinDeltas', 'csDiffPerMinDeltas'];
   var deltaColumns = ['CS/Min Delta', 'Gold Delta', 'CS/Min Diff Delta'];
@@ -1307,37 +1392,13 @@ function getDeltas(participant, row) {
     for(var deltaTimeCount = 0; deltaTimeCount <= 3; deltaTimeCount++) {
       if(deltas[deltaTypes[deltaCount]]) {
         if(deltas[deltaTypes[deltaCount]][deltaTimes[deltaTimeCount]]) {
-          setCell(deltaColumns[deltaCount].concat(deltaColumnTimes[deltaTimeCount]), row, deltas[deltaTypes[deltaCount]][deltaTimes[deltaTimeCount]]);
+          if(checkHeaderExists(deltaColumns[deltaCount].concat(deltaColumnTimes[deltaTimeCount]))) {
+            setCell(deltaColumns[deltaCount].concat(deltaColumnTimes[deltaTimeCount]), row, deltas[deltaTypes[deltaCount]][deltaTimes[deltaTimeCount]]);
+          }
         }
       }
     }
   }
-}
-
-/*
- * Checks if we are duoing and sets if we are
- * Takes the match, the row, and an array of player names as strings
- */
-function setDuoer(match, row, players) {
-  // Note that the way that this checks if we are duoing checks by seeing if we have duo'd with this person before
-  // So you WILL have to manually enter it the first time you duo with a player
-  // Also note that if you queue into a game with multiple players on your team that you have duo'd with before
-  // This may incorrectly assign the duoing player
-  // Hopefully this affects such a small percentage of players that it won't matter
-  
-  var s = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = s.getSheetByName('Data');
-  var index = getSheetTranslationIndex('Duoer') - 1; 
-  var values = s.getDataRange().getValues();
-  for(i = values.length - 1; i > 0; i--) { // go in reverse order since we're most likely to keep duoing with people
-    if(players.indexOf(values[i][index]) != -1) {
-      setCell('Duoer', row, values[i][index]);
-      var pobj = getParticipantObjByName(match, values[i][index]);
-      var role = getRoleFromParticipantObj(pobj);
-      setCell('Duo Role', row, role); 
-      break;
-    }
-  }   
 }
 
 /*
