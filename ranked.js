@@ -412,7 +412,7 @@ function getSummonerId() {
   if(!status) {
     var json = response.getContentText();
     var data = JSON.parse(json);  
-    return data[getInfo('summoner_name').toLowerCase()]['id'];
+    return data[getInfo('summoner_name').toLowerCase().replace(/ /g,'')]['id'];
   }
   else if(status == 'exit') {
     return 'exit';
@@ -455,6 +455,7 @@ function getMatchHistoryIds(mode) {
         matchIds.push(data["matches"][i]["matchId"]);
       }
     }
+    Logger.log(matchIds);
     return matchIds;
   }
   else if(status == 'exit') {
