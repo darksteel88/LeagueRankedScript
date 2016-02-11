@@ -24,23 +24,6 @@ function run() {
 }
 
 /*
- * Gets an array of all games we haven't recorded and then populates the data for it on our sheet
- * A special version in order to populate while skipping the league info
- */
-function runInitial() {
-  checkPartialRow(getFirstEmptyRow()-1); // delete a potentially partially filled row
-  var match_history = findUniqueMatchIds();
-  if(!match_history || match_history == 'exit') {
-    return 'exit';
-  }
-  var result = populate(match_history, null, true);
-  // indicates a partial entry so delete the most recent row
-  if(result == 'exit') {
-    deleteRow(getFirstEmptyRow() - 1);
-  }
-}
-
-/*
  * Build the menu
  */
 function buildMenu(e) {
@@ -48,7 +31,6 @@ function buildMenu(e) {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('Ranked')
     .addItem('Run', 'run')
-    .addItem('Run Initial', 'runInitial')
     .addItem('Correct Row', 'fixRow')
     .addToUi();
   /*var menu = SpreadsheetApp.getUi().createAddonMenu();
@@ -156,6 +138,12 @@ function populate(match_history, specificRow, discludeLeague) {
   var sheet = s.getSheetByName('Data');
   for(n = 0; n < match_history.length; n++) {
     var row;
+    // this makes it so we always disclude league information unless there's only one game in the match history
+    // because every game except our last game is guaranteed to have wrong information
+    var includeLeague = false;
+    if(n === match_history.length - 1) {
+      includeLeague = true;
+    }
     if(!specificRow) {
       sheet.appendRow([match_history[n]]);
       row = getFirstEmptyRow() - 1;
@@ -224,7 +212,7 @@ function populate(match_history, specificRow, discludeLeague) {
     if(checkHeaderExists('Highest KDA')) {
       setCell('Highest KDA', row, getHighestKDA(row));
     }
-    if(!discludeLeague) {
+    if(!discludeLeague && includeLeague) {
       if(checkHeaderExists('League') || checkHeaderExists('Division') || checkHeaderExists('Current LP') || checkHeaderExists('Promos')) {
         leagueStats = getMyLeagueStats(); 
         if(leagueStats == 'exit') {
