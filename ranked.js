@@ -745,7 +745,7 @@ function getAndSetChampionStats(match, teamId, row) {
         break;
       }
       else {
-        var results = fixDuoBot(valid[team], invalid[team]); // fix any potential duo bot issue
+        var results = fixDuoBot(valid[team], invalid[team], match); // fix any potential duo bot issue
         valid[team] = results[0];
         invalid[team] = results[1];
         results = fixJungler(valid[team], invalid[team]); // try to fix the jungler
