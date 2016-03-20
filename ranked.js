@@ -13,7 +13,11 @@ function onOpen(e) {
 function run() {
   checkPartialRow(getFirstEmptyRow()-1); // delete a potentially partially filled row
   var match_history = findUniqueMatchIds();
-  if(!match_history || match_history == 'exit') {
+  if(match_history.length === 0 || match_history == 'exit') {
+    return 'exit';
+  }
+  if(getMatch(match_history[0])['matchId'] < getLastMatchId() ){
+    run();
     return 'exit';
   }
   var result = populate(match_history);
