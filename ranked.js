@@ -16,7 +16,9 @@ function run() {
   if(match_history.length === 0 || match_history == 'exit') {
     return 'exit';
   }
-  if(getMatch(match_history[0])['matchId'] < getLastMatchId() ){
+  var dtOld = getMatchTimestamp(getMatch(getLastMatchId()));
+  var dtNew = getMatchTimestamp(getMatch(match_history[0]));
+  if(dtNew < dtOld) {
     run();
     return 'exit';
   }
@@ -25,6 +27,22 @@ function run() {
   if(result == 'exit') {
     deleteRow(getFirstEmptyRow() - 1);
   }
+}
+
+/*
+ * Gets the timestamp of a given match
+ */
+function getMatchTimestamp(match) {
+  return match['matchCreation'];
+}
+
+/*
+ * Gets the last matchId in the sheet
+ */
+function getLastMatchId() {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  return sheet.getRange(getFirstEmptyRow()-1, getSheetTranslationIndex('Match Id')).getValue();
 }
 
 /*
