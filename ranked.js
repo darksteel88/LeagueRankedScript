@@ -54,12 +54,47 @@ function buildMenu(e) {
   ui.createMenu('Ranked')
     .addItem('Run', 'run')
     .addItem('Correct Row', 'fixRow')
+    .addItem('Setup', 'setup')
     .addToUi();
   /*var menu = SpreadsheetApp.getUi().createAddonMenu();
   if(e && e.authMode == ScriptApp.AuthMode.NONE) {
     menu.addItem('Run', 'run');
     menu.addItem('Correct Row', 'fixRow'); // since we can't actually pass arguments
   }*/
+}
+
+/*
+ * Setup the spreadsheet boilerplate stuff
+ * Sets up the configuration page and the headers
+ */
+function setup() {
+  // check if everything is setup already or not
+  // if it is, just ignore this and do nothing
+  var s = SpreadsheetApp.getActiveSpreadsheet();  
+  if(s.getNumSheets() > 1 && s.getSheetByName('Configuration') && s.getSheetByName('Data')) {
+    return;
+  }
+  if(s.getActiveSheet().getName() === 'Sheet1') {
+    s.renameActiveSheet('Data');
+  }
+  
+  var headers = ['Match Id','Patch','Date','Time','Length','My Role','My Champion','Side','Result','Kills','Deaths','Assists','My KDA','Highest KDA','Kill Contribution','Kill Contribution Diff',
+                 'Death Contribution','CS','CS/Min','My Top','My Top KDA','My Jungle','My Jungle KDA','My Mid','My Mid KDA','My ADC','My ADC KDA','My Support','My Support KDA','Their Top','Their Top KDA','Their Jungle',
+                 'Their Jungle KDA','Their Mid','Their Mid KDA','Their ADC','Their ADC KDA','Their Support','Their Support KDA','League	Division','Current LP','LP Change','Promos','Duoer','Duo Role','Total CS Difference',
+                 'CS/Min Delta 0 to 10','CS/Min Delta 10 to 20','CS/Min Delta 20 to 30','CS/Min Delta 30 to End','CS/Min Diff Delta 0 to 10','CS/Min Diff Delta 10 to 20','CS/Min Diff Delta 20 to 30',
+                 'CS/Min Diff Delta 30 to End','Gold Delta 0 to 10','Gold Delta 10 to 20','Gold Delta 20 to 30','Gold Delta 30 to End','Kill Diff','Death Diff','Assist Diff','KDA Diff','Ban 1','Ban 2','Ban 3',
+                 'Ban 4','Ban 5','Ban 6','My Dragons','Enemy Dragons','My Barons','Enemy Barons','First Blood','First Tower','First Inhibitor','First Dragon','First Baron','Damage to Champions','Damage to Champions Diff',
+                 'Wards Placed','Wards Placed Diff','Wards Destroyed','Wards Destroyed Diff','Vision Wards Bought','Vision Wards Bought Diff','My AFK','Their AFK','Individual Notes','Team Notes','Positives','Negatives','Learn/Improve'];
+  s.getSheetByName('Data').appendRow(headers);
+  
+  s.insertSheet('Configuration', 1);
+  var sheet = s.getSheetByName('Configuration');
+  var items = ['api_key', 'region', 'name', 'id', 'season', 'correct_row', 'patch'];
+  for(var i = 0; i  < items.length; i++) {
+    sheet.appendRow([items[i]]);
+  }
+  Browser.msgBox('Please fill out the api_key, region, name, and season values before continuing');
+  
 }
 
 /*
@@ -93,7 +128,7 @@ function getInfo(value) {
     return sheet.getRange('B2').getValue();
   }
   if(value == 'summoner_name') {
-    return sheet.getRange('B3').getValue();
+    return sheet.getRange('B3').getValue().toLowerCase();
   }
   if(value == 'season') {
     return sheet.getRange('B5').getValue();
@@ -422,7 +457,7 @@ function getSummonerId() {
   if(!status) {
     var json = response.getContentText();
     var data = JSON.parse(json);  
-    return data[getInfo('summoner_name').toLowerCase().replace(/ /g,'')]['id'];
+    return data[getInfo('summoner_name').replace(/ /g,'')]['id'];
   }
   else if(status == 'exit') {
     return 'exit';
@@ -465,7 +500,6 @@ function getMatchHistoryIds(mode) {
         matchIds.push(data["matches"][i]["matchId"]);
       }
     }
-    Logger.log(matchIds);
     return matchIds;
   }
   else if(status == 'exit') {
@@ -542,7 +576,7 @@ function getMatchLength(match) {
 function getMatchParticipantId(match) {
   var participants = match['participantIdentities'];
   for(i = 0; i < participants.length; i++) {
-    if(participants[i]['player']['summonerName'] == getInfo('summoner_name')) {
+    if(participants[i]['player']['summonerName'].toLowerCase() == getInfo('summoner_name')) {
       return participants[i]['participantId'];
     }
   }
@@ -588,7 +622,7 @@ function getParticipantObjByName(match, name) {
   var pids = match['participantIdentities'];
   var pid = -1;
   for(i = 0; i < pids.length; i++) {
-    if(pids[i]['player']['summonerName'] == name) {
+    if(pids[i]['player']['summonerName'].toLowerCase() === name.toLowerCase()) {
       pid = pids[i]['participantId'];
       break;
     }
@@ -1335,7 +1369,7 @@ function getMyLeagueStats() {
     var division, lp, tier, promos;
     stats['tier'] = data[getInfo('summoner_id')][0]['tier'];
     for(i = 0; i < data[getInfo('summoner_id')][0]['entries'].length; i++) {
-      if(data[getInfo('summoner_id')][0]['entries'][i]['playerOrTeamName'] == getInfo('summoner_name')) {
+      if(data[getInfo('summoner_id')][0]['entries'][i]['playerOrTeamName'].toLowerCase() == getInfo('summoner_name')) {
         stats['division'] = data[getInfo('summoner_id')][0]['entries'][i]['division'];
         stats['lp'] = data[getInfo('summoner_id')][0]['entries'][i]['leaguePoints'];
         stats['promos'] = 'No';
@@ -1489,7 +1523,7 @@ function getTeamPlayers(match, teamId) {
   
   for(i = 0; i < match['participantIdentities'].length; i++) {
     if(pOnTeam.indexOf(match['participantIdentities'][i]['participantId']) != -1) {
-      summoners.push(match['participantIdentities'][i]['player']['summonerName']);
+      summoners.push(match['participantIdentities'][i]['player']['summonerName'].toLowerCase());
     }
   }
   return summoners;    
