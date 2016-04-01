@@ -55,6 +55,7 @@ function buildMenu(e) {
     .addItem('Run', 'run')
     .addItem('Correct Row', 'fixRow')
     .addItem('Setup', 'setup')
+    .addItem('Add Rift Herald', 'fixColumn')
     .addToUi();
   /*var menu = SpreadsheetApp.getUi().createAddonMenu();
   if(e && e.authMode == ScriptApp.AuthMode.NONE) {
@@ -307,19 +308,25 @@ function populate(match_history, specificRow, discludeLeague) {
       }
     }
     if(checkHeaderExists('My Dragons') || checkHeaderExists('Enemy Dragons') || checkHeaderExists('My Barons') || checkHeaderExists('Enemy Barons')) {
-      var neutral = getDragonsBarons(match, teamId);
+      var neutral = getDragonsBaronsHeralds(match, teamId);
       setCell('My Dragons', row, neutral['myDragons']);
       setCell('Enemy Dragons', row, neutral['enemyDragons']);
       setCell('My Barons', row, neutral['myBarons']);
       setCell('Enemy Barons', row, neutral['enemyBarons']);
+      if(checkHeaderExists('My Rift Heralds') || checkHeaderExists('Enemy Rift Heralds')) {
+        setCell('My Rift Heralds', row, neutral['myRiftHeralds']);
+        setCell('Enemy Rift Heralds', row, neutral['enemyRiftHeralds']);
+      }
     }
-    if(checkHeaderExists('First Blood') || checkHeaderExists('First Tower') || checkHeaderExists('First Inhibitor') || checkHeaderExists('First Dragon') || checkHeaderExists('First Baron')) {
+    if(checkHeaderExists('First Blood') || checkHeaderExists('First Tower') || checkHeaderExists('First Inhibitor') || checkHeaderExists('First Dragon') 
+    || checkHeaderExists('First Baron') || checkHeaderExists('First Rift Herald')) {
       var firstStats = getFirstStats(match, teamId);
       setCell('First Blood', row, firstStats['firstBlood']);
       setCell('First Tower', row, firstStats['firstTower']);
       setCell('First Inhibitor', row, firstStats['firstInhibitor']);
       setCell('First Dragon', row, firstStats['firstDragon']);
       setCell('First Baron', row, firstStats['firstBaron']);
+      setCell('First Rift Herald', row, firstStats['firstRiftHerald']);
     }
     if(checkHeaderExists('Damage to Champions')) {
       var damageToChamps = getChampionDamageDealt(pobj)/getTotalTeamDamage(match, teamId);
@@ -1448,15 +1455,17 @@ function getAndSetDeltas(participant, row) {
 /*
  * Get the number of dragons and barons for each team
  */
-function getDragonsBarons(match, teamId) {
+function getDragonsBaronsHeralds(match, teamId) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
   var myTeamIndex = teamId == 100 ? 0 : 1;
   var enemyTeamIndex = myTeamIndex == 0 ? 1 : 0;
   var neutralObjStats = {'myDragons': match['teams'][myTeamIndex]['dragonKills'],
                          'myBarons' : match['teams'][myTeamIndex]['baronKills'],
+                         'myRiftHeralds' : match['teams'][myTeamIndex]['riftHeraldKills'],
                          'enemyDragons' : match['teams'][enemyTeamIndex]['dragonKills'],
-                         'enemyBarons' : match['teams'][enemyTeamIndex]['baronKills'],};
+                         'enemyBarons' : match['teams'][enemyTeamIndex]['baronKills'],
+                         'enemyRiftHeralds' : match['teams'][enemyTeamIndex]['riftHeraldKills']};
   return neutralObjStats;
 }
   
@@ -1500,7 +1509,8 @@ function getFirstStats(match, teamId) {
                     'firstTower' : (match['teams'][myTeamIndex]['firstTower']) ? 'Yes' : 'No',
                     'firstInhibitor' : (match['teams'][myTeamIndex]['firstInhibitor']) ? 'Yes' : 'No',
                     'firstDragon' : (match['teams'][myTeamIndex]['firstDragon']) ? 'Yes' : 'No',
-                    'firstBaron' : (match['teams'][myTeamIndex]['firstBaron']) ? 'Yes' : 'No',};
+                    'firstBaron' : (match['teams'][myTeamIndex]['firstBaron']) ? 'Yes' : 'No',
+                    'firstRiftHerald' : (match['teams'][myTeamIndex]['firstRiftHerald']) ? 'Yes' : 'No',};
   return firstStats;
 }
 
@@ -1704,16 +1714,104 @@ function getPatch(match) {
  * Private function
  * Used to add new columns and populate data for existing entries
  */
-function fixColumn() {
-  var columns = ['Patch'];
+function fixColumn(column) {
   var s = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = s.getSheetByName('Data');
-  for(var i = 520; i < getFirstEmptyRow(); i++) {
-    var matchId = sheet.getRange(i , getSheetTranslationIndex('Match Id')).getValue();
-    var match = getMatch(matchId);
-    var patch = getPatch(match);
-    setCell('Patch', i, patch);
+  var columns = [];
+  column = 'Rift Herald'; // temporary, add to config sheet later
+  if(column === 'Rift Herald') {
+    columns = ['My Rift Heralds', 'Enemy Rift Heralds', 'First Rift Herald'];
   }
+  for(var row = getLastEmptyRow(columns[0]); row > 0; row--) {
+    // populate rift herald
+    var matchId = sheet.getRange(row, getSheetTranslationIndex('Match Id')).getValue();
+    var match = getMatch(matchId);
+    var pid = getMatchParticipantId(match);
+    if(pid === 'exit') {
+      return 'exit';
+    }
+    var pobj = getParticipantObj(match, pid);
+    var teamId = getMatchTeamId(pobj);
+    var enemyTeamId = getOpponentTeamId(teamId);
+    var myTeamIndex = teamId === 100 ? 0 : 1;
+    var enemyTeamIndex = enemyTeamId === 100 ? 0 : 1;
+    if(checkHeaderExists(columns[0])) {
+      var myRiftHeralds = match['teams'][myTeamIndex]['riftHeraldKills'];
+      Logger.log(myRiftHeralds);
+      if(typeof(myRiftHeralds) == 'number') {
+        setCell(columns[0], row, myRiftHeralds);
+      }
+      else {
+        return; // no rift heralds exist
+      }
+    }
+    else {
+      return;
+    }
+    if(checkHeaderExists(columns[1])) {
+      var enemyRiftHeralds = match['teams'][enemyTeamIndex]['riftHeraldKills'];
+      if(typeof(enemyRiftHeralds) == 'number') {
+        setCell(columns[1], row, enemyRiftHeralds);
+      }
+      else {
+        return;
+      }
+    }
+    else {
+      return;
+    }
+    if(checkHeaderExists(columns[2])) {
+      var firstRiftHerald = (match['teams'][myTeamIndex]['firstRiftHerald']) ? 'Yes' : 'No';
+      if(firstRiftHerald) {
+        setCell(columns[2], row, firstRiftHerald);
+      }
+      else {
+        return;
+      }
+    }
+    else {
+      return;
+    } 
+  }
+}
+
+/*
+ * Get the last empty row for a specific column
+ * Used when updating to add new columns
+ */
+function getLastEmptyRow(column) {
+  var s = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = s.getSheetByName('Data');
+  
+  // we can simply check in reverse binary order for the first empty one because we need to populate all empty rows
+  // and the order we populate in doesn't matter at all
+  // this way we don't run into the issue of needing to figure out whether rift herald exists yet or not
+  if(!checkHeaderExists(column)) {
+    Browser.msgBox("Error: Rift Herald column(s) not added. The column names are My Rift Heralds, Enemy Rift Heralds, and First Rift Herald");
+    return;
+  }
+  var row = sheet.getLastRow();
+  // special case if no rows are populated yet
+  if(sheet.getRange(row, getSheetTranslationIndex(column)).getValue() === '') {
+    return row;
+  }
+  var rowMax = row;
+  var rowMin = row/2;
+  row = Math.round(row - rowMin);
+  while(Math.abs(rowMax-rowMin)/2 > 1) {
+    if(sheet.getRange(row, getSheetTranslationIndex(column)).getValue() === '') {
+      row += Math.round(Math.abs(rowMax - rowMin) / 2);
+      rowMin = row;
+    }
+    else {
+      row -= Math.round(Math.abs(rowMax - rowMin) / 2);
+      rowMax = row;
+    }
+      
+  }
+  // return +1 to force refresh the last row that may be incomplete
+  // faster to force than check if we need to update
+  return row+1;
 }
 
 /*
