@@ -1916,6 +1916,14 @@ function checkStatusError(response) {
     Browser.msgBox("Error, Riot unavailable. Please try again later.");
     return "exit";
   }
+  else if(code === 404) {
+    if(getInfo('summoner_id')) {
+      Browser.msgBox("Error, game not found. Riot is most likely experiencing technical difficulties related to their match history. Contact the author if this issue persists.");
+    }
+    else {
+      Browser.msgBox("Error, summoner ID not found. Please ensure your summoner name is correct.");
+    }
+  }
   else {
     Browser.msgBox("Error, please make sure everything is configured correctly.");
     return "exit";
